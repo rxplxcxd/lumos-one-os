@@ -1,0 +1,27 @@
+{
+  "$comment": "Single source of truth for Lumos haptic patterns. Steps: {e: DRV2605L ROM effect id (LRA library 6)}, {w: wait ms}, {rtp: [[amplitude 0..127, ms], ...]} for real-time-playback envelopes. 'rumble' is the fallback for generic gamepads (Gamepad API dual-rumble) and the handheld body motor.",
+  "version": 2,
+  "patterns": {
+    "nav.tick":          { "steps": [{ "e": 26 }],                                   "rumble": [{ "strong": 0.0,  "weak": 0.18, "ms": 12 }] },
+    "nav.edge":          { "steps": [{ "e": 8 }],                                    "rumble": [{ "strong": 0.25, "weak": 0.1,  "ms": 24 }] },
+    "nav.page":          { "steps": [{ "e": 25 }, { "w": 30 }, { "e": 26 }],         "rumble": [{ "strong": 0.0,  "weak": 0.3,  "ms": 18 }] },
+    "select":            { "steps": [{ "e": 17 }],                                   "rumble": [{ "strong": 0.35, "weak": 0.35, "ms": 22 }] },
+    "back":              { "steps": [{ "e": 22 }],                                   "rumble": [{ "strong": 0.15, "weak": 0.25, "ms": 16 }] },
+    "toggle.on":         { "steps": [{ "e": 4 }],                                    "rumble": [{ "strong": 0.3,  "weak": 0.4,  "ms": 18 }] },
+    "toggle.off":        { "steps": [{ "e": 6 }],                                    "rumble": [{ "strong": 0.1,  "weak": 0.25, "ms": 14 }] },
+    "slider.detent":     { "steps": [{ "e": 26 }],                                   "rumble": [{ "strong": 0.0,  "weak": 0.14, "ms": 10 }] },
+    "key":               { "steps": [{ "e": 25 }],                                   "rumble": [{ "strong": 0.0,  "weak": 0.2,  "ms": 10 }] },
+    "open":              { "steps": [{ "rtp": [[30, 12], [70, 14], [40, 12], [0, 1]] }], "rumble": [{ "strong": 0.2, "weak": 0.3, "ms": 30 }] },
+    "close":             { "steps": [{ "rtp": [[60, 10], [25, 18], [0, 1]] }],      "rumble": [{ "strong": 0.12, "weak": 0.22, "ms": 24 }] },
+    "faceid.scan":       { "steps": [{ "e": 9 }],                                    "rumble": [{ "strong": 0.0,  "weak": 0.12, "ms": 14 }] },
+    "faceid.success":    { "steps": [{ "e": 7 }, { "w": 85 }, { "e": 8 }],           "rumble": [{ "strong": 0.22, "weak": 0.4, "ms": 26 }, { "strong": 0, "weak": 0, "ms": 70 }, { "strong": 0.12, "weak": 0.3, "ms": 22 }] },
+    "faceid.fail":       { "steps": [{ "e": 4 }, { "w": 55 }, { "e": 4 }, { "w": 55 }, { "e": 5 }], "rumble": [{ "strong": 0.6, "weak": 0.2, "ms": 30 }, { "strong": 0, "weak": 0, "ms": 45 }, { "strong": 0.6, "weak": 0.2, "ms": 30 }, { "strong": 0, "weak": 0, "ms": 45 }, { "strong": 0.4, "weak": 0.15, "ms": 30 }] },
+    "boot.rise":         { "steps": [{ "rtp": [[8, 120], [18, 120], [30, 120], [46, 120], [64, 110], [84, 100], [104, 90], [70, 60], [36, 60], [12, 60], [0, 1]] }], "rumble": [{ "strong": 0.05, "weak": 0.1, "ms": 240 }, { "strong": 0.2, "weak": 0.3, "ms": 240 }, { "strong": 0.45, "weak": 0.5, "ms": 200 }, { "strong": 0.15, "weak": 0.2, "ms": 160 }] },
+    "controller.attach": { "steps": [{ "e": 58 }, { "w": 40 }, { "e": 7 }],          "rumble": [{ "strong": 0.4,  "weak": 0.4,  "ms": 40 }] },
+    "controller.detach": { "steps": [{ "e": 70 }],                                   "rumble": [{ "strong": 0.3,  "weak": 0.1,  "ms": 60 }] },
+    "notify":            { "steps": [{ "e": 21 }, { "w": 90 }, { "e": 8 }],          "rumble": [{ "strong": 0.3,  "weak": 0.3,  "ms": 30 }, { "strong": 0, "weak": 0, "ms": 80 }, { "strong": 0.15, "weak": 0.2, "ms": 25 }] },
+    "success":           { "steps": [{ "e": 7 }, { "w": 70 }, { "e": 17 }],          "rumble": [{ "strong": 0.3,  "weak": 0.4,  "ms": 30 }, { "strong": 0, "weak": 0, "ms": 60 }, { "strong": 0.45, "weak": 0.45, "ms": 25 }] },
+    "error":             { "steps": [{ "e": 10 }],                                   "rumble": [{ "strong": 0.7,  "weak": 0.3,  "ms": 70 }] },
+    "long.press":        { "steps": [{ "e": 82 }],                                   "rumble": [{ "strong": 0.2,  "weak": 0.4,  "ms": 90 }] }
+  }
+}

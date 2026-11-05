@@ -1,0 +1,124 @@
+@import '@fontsource-variable/inter';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The whole shell is laid out on an 80 × 50 rem canvas (16:10). The root font size scales so
+   the layout is pixel-identical on the 8" 1920×1200 panel, a 4K TV in dock mode and in a browser. */
+:root {
+  --ui-scale: 1;
+  font-size: calc(min(100vw / 80, 100vh / 50) * var(--ui-scale));
+  color-scheme: dark;
+  --glass-bg: rgba(18, 21, 27, 0.52);
+  --glass-bg-strong: rgba(14, 16, 21, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.075);
+  --glass-hi: rgba(255, 255, 255, 0.055);
+  --lumen: 216 228 255;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+body {
+  @apply font-sans text-mist-50 antialiased;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 0 var(--glass-hi), 0 24px 60px -28px rgba(0, 0, 0, 0.7);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    backdrop-filter: blur(28px) saturate(140%);
+  }
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 0 var(--glass-hi), 0 30px 80px -30px rgba(0, 0, 0, 0.85);
+    -webkit-backdrop-filter: blur(40px) saturate(150%);
+    backdrop-filter: blur(40px) saturate(150%);
+  }
+  .hairline {
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  .label {
+    @apply text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-mist-400;
+  }
+  .nav-focus {
+    position: relative;
+    outline: none;
+    transition: box-shadow 160ms ease, background-color 160ms ease;
+  }
+  .nav-focus:focus-visible,
+  .nav-focus:focus {
+    box-shadow: 0 0 0 2px rgba(var(--lumen) / 0.9), 0 0 0 6px rgba(var(--lumen) / 0.12), 0 22px 46px -18px rgba(127, 163, 255, 0.4);
+  }
+  .row-focus:focus,
+  .row-focus:focus-visible {
+    outline: none;
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: inset 0 0 0 1.5px rgba(var(--lumen) / 0.7);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Focus shimmer used on focused tiles */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  animation: shimmer 1.4s cubic-bezier(0.3, 0, 0.2, 1) 1;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after {
+    animation: none;
+  }
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  transition-duration: 1ms !important;
+}
+
+webview {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}

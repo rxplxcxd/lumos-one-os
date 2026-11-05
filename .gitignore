@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+*.log
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.pio/
+firmware/.pio/
+cloud-server/data/
+build/
+*.zip
+.env
