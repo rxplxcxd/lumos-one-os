@@ -26,6 +26,7 @@ import { pixelOffset } from '@/components/shell/Ambient.jsx';
 import { startGameSession } from '@/services/gameSession.js';
 import { saveClip, takeScreenshot } from '@/services/captureActions.js';
 import { startFpsMeter } from '@/lib/fps.js';
+import { startHub } from '@/services/social/hub.js';
 import { useProfiles } from '@/store/profile.js';
 import { open } from '@/store/ui.js';
 import { applyUiTheme } from '@/lib/themes.js';
@@ -111,7 +112,7 @@ export default function App() {
   useEffect(() => {
     let offs = [];
     initBridge().then(() => {
-      offs = [startSettingsEffects(), startSystemFeeds(), startDownloadFeeds(), startLibraryFeeds(), startGameSession(), startFpsMeter()];
+      offs = [startSettingsEffects(), startSystemFeeds(), startDownloadFeeds(), startLibraryFeeds(), startGameSession(), startFpsMeter(), startHub()];
       initCloud();
       setReady(true);
       // several profiles on this device → who's playing? (once per cold boot)

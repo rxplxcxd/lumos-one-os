@@ -1,7 +1,7 @@
 // iOS/Switch hybrid settings: section rail on the left, grouped lists on the right.
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Cpu, Palette, MonitorSmartphone, Volume2, Gauge, Wifi, Gamepad2, Vibrate, ScanFace, Cloud, RefreshCw, Code2, Info, UserRound, Image, Sparkles, Keyboard, Music, MoonStar, LayoutGrid, Bell, Shield, Users, Activity, PartyPopper } from 'lucide-react';
+import { Settings, Cpu, Palette, MonitorSmartphone, Volume2, Gauge, Wifi, Gamepad2, Vibrate, ScanFace, Cloud, RefreshCw, Code2, Info, UserRound, Image, Sparkles, Keyboard, Music, MoonStar, LayoutGrid, Bell, Shield, Users, Activity, PartyPopper, Link2 } from 'lucide-react';
 import { Screen, Hint } from '@/components/ui/primitives.jsx';
 import { useTabs } from '@/hooks/useInputSystem.js';
 import { haptic } from '@/services/haptics.js';
@@ -11,6 +11,7 @@ import { NetworkSection, CloudSection, UpdatesSection, DeveloperSection, AboutSe
 import { ControllersSection, HapticsSection } from './ControllerSections.jsx';
 import FaceIdSettings from './FaceIdSettings.jsx';
 import KeyboardSection from './KeyboardSection.jsx';
+import AccountsSection from './AccountsSection.jsx';
 import AppsSection from './AppsSection.jsx';
 import FamilySection from './FamilySection.jsx';
 import { EqualizerGroup, LowPowerGroup, CursorGroup, OverlaySection, SeasonalSection } from './V11Sections.jsx';
@@ -42,6 +43,7 @@ export const SECTIONS = [
   { key: 'family', label: 'Familie & Kindersicherung', icon: Users, bg: 'bg-[#e0627a]', C: FamilySection },
   { key: 'overlay', label: 'Leistungs-HUD & Aufnahme', icon: Activity, bg: 'bg-[#c2567b]', C: OverlaySection },
   { key: 'seasonal', label: 'Saisonale Themen', icon: PartyPopper, bg: 'bg-[#e08a3a]', C: SeasonalSection },
+  { key: 'accounts', label: 'Konten & Verknüpfungen', icon: Link2, bg: 'bg-[#107c10]', C: AccountsSection },
   { key: 'cloud', label: 'Cloud-Dienste', icon: Cloud, bg: 'bg-[#4a90d9]', C: CloudSection },
   { key: 'updates', label: 'Softwareupdate', icon: RefreshCw, bg: 'bg-[#6b7280]', C: UpdatesSection },
   { key: 'developer', label: 'Entwickler', icon: Code2, bg: 'bg-[#4b5563]', C: DeveloperSection },

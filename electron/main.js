@@ -152,7 +152,8 @@ function registerIpc() {
   // Picture-in-Picture overlay: own always-on-top window, flagged for Gamescope so it floats above games
   let pip = null;
   ipcMain.handle('pip:open', wrap((url) => {
-    if (!/^https:\/\//.test(url)) throw new Error('only https');
+    // https links plus the Steam client's own friend/chat deep links (never arbitrary schemes)
+    if (!/^https:\/\//.test(url) && !/^steam:\/\/friends\/(add|message|profile)\/\d{5,20}$/.test(url)) throw new Error('only https or steam friend links');
     const area = screen.getPrimaryDisplay().workAreaSize;
     if (!pip || pip.isDestroyed()) {
       pip = new BrowserWindow({ width: 520, height: 292, x: area.width - 560, y: area.height - 332, frame: false, alwaysOnTop: true, skipTaskbar: true, focusable: false, resizable: true, backgroundColor: '#000000', webPreferences: { partition: 'persist:lumos-web', sandbox: true, contextIsolation: true } });
@@ -184,7 +185,8 @@ function registerIpc() {
     safeStorageBackend: safeStorage.getSelectedStorageBackend?.() ?? null,
   }));
   ipcMain.handle('shell:openExternal', wrap((url) => {
-    if (!/^https:\/\//.test(url)) throw new Error('only https');
+    // https links plus the Steam client's own friend/chat deep links (never arbitrary schemes)
+    if (!/^https:\/\//.test(url) && !/^steam:\/\/friends\/(add|message|profile)\/\d{5,20}$/.test(url)) throw new Error('only https or steam friend links');
     return shell.openExternal(url);
   }));
 }

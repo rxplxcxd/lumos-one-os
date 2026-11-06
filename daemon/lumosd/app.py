@@ -18,6 +18,7 @@ from .haptics import HapticsModule
 from .keypad import KeypadModule
 from .apps import AppsModule
 from .terminal import TerminalModule
+from .social import SocialModule
 from . import logbuf
 from .library import LibraryModule
 from .media import MediaModule
@@ -31,7 +32,7 @@ from .sim import SimModule
 from .system import SystemModule
 from .update import UpdateModule
 
-MODULES = [SimModule, UpdateModule, PowerModule, SystemModule, DockModule, DisplayModule, AudioModule, NetworkModule, MediaModule, FlatpakModule, LibraryModule, SideloadModule, SavesModule, ControllerModule, KeypadModule, HapticsModule, FaceIdModule, TerminalModule, AppsModule]
+MODULES = [SimModule, UpdateModule, PowerModule, SystemModule, DockModule, DisplayModule, AudioModule, NetworkModule, MediaModule, FlatpakModule, LibraryModule, SideloadModule, SavesModule, ControllerModule, KeypadModule, HapticsModule, FaceIdModule, TerminalModule, AppsModule, SocialModule]
 
 
 def build(cfg):

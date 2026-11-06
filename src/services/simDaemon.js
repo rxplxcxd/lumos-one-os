@@ -2,6 +2,26 @@
 // reachable (e.g. previewing the UI in a desktop browser). Implements the same request/event
 // contract as daemon/lumosd so every screen is fully interactive. Real hardware always goes
 // through the Python daemon; the Developer Panel drives this simulator via the same `sim.*` calls.
+
+const mins = (m) => Date.now() - m * 60000;
+const SOCIAL_FRIENDS = () => [
+  { platform: 'steam', id: '76561198000000011', name: 'AnnaFPS', status: 'online', game: { name: 'Hollow Knight', cover: null }, since: mins(95), text: 'Spielt Hollow Knight' },
+  { platform: 'steam', id: '76561198000000012', name: 'noctis_dev', status: 'away', game: null, text: 'Abwesend', lastSeen: mins(12) },
+  { platform: 'steam', id: '76561198000000013', name: 'PixelPanda', status: 'offline', game: null, lastSeen: mins(60 * 7) },
+  { platform: 'xbox', id: '2535400000000021', name: 'MasterChief77', status: 'online', game: { name: 'Halo Infinite', cover: null }, since: mins(33), text: 'Spielt Halo Infinite', party: { size: 3, max: 4 } },
+  { platform: 'xbox', id: '2535400000000022', name: 'Cortana Fan', status: 'offline', game: null, lastSeen: mins(60 * 26) },
+  { platform: 'psn', id: '1000000000000031', name: 'Kratos_Jr', status: 'online', game: { name: 'God of War Ragnarök', cover: null }, since: mins(48), text: 'Spielt God of War Ragnarök' },
+  { platform: 'psn', id: '1000000000000032', name: 'Aloy_Hunter', status: 'offline', game: null, lastSeen: mins(60 * 3) },
+  { platform: 'nintendo', id: 'sw-0041', name: 'MarioFan', status: 'online', game: { name: 'Mario Kart 8 Deluxe', cover: null }, since: mins(20), text: 'Spielt Mario Kart 8 Deluxe' },
+].map((f) => ({ avatar: null, party: null, lastSeen: null, ...f }));
+const SOCIAL_DIRECTORY = [
+  { platform: 'steam', id: '76561198000000099', name: 'Anna_Steam' },
+  { platform: 'xbox', id: '2535400000000098', name: 'AnnaX360' },
+  { platform: 'psn', id: '1000000000000097', name: 'Anna-PS5' },
+  { platform: 'steam', id: '76561198000000096', name: 'BenGamer' },
+  { platform: 'psn', id: '1000000000000095', name: 'BenGamer_PSN' },
+];
+
 export function createSimDaemon(emit) {
   const ev = (event, data) => queueMicrotask(() => emit({ event, data }));
   const now = () => Date.now();
@@ -16,6 +36,7 @@ export function createSimDaemon(emit) {
     running: new Map(),
     terminals: new Map(),
     logs: [],
+    social: { linked: {}, chats: {}, polls: 0 },
     faceOutcome: 'success',
     faceModels: [{ id: 1, label: 'Primäres Gesicht', created: now() - 86400e3 * 12 }],
     faceEnabled: true,
@@ -347,6 +368,35 @@ export function createSimDaemon(emit) {
     'saves.manifest': ({ id }) => {
       const h = Math.floor(now() / 3600e3);
       return ['saves/Pokemon Emerald.srm', 'saves/Zelda Minish Cap.srm', 'states/Pokemon Emerald.state1', 'states/Metroid Fusion.state'].map((f, i) => ({ path: f, size: 65536 * (i + 1) + (f.includes('state1') ? h % 9 : 0), mtime: now() - i * 5400e3, sha256: `${id}-${f}-${f.includes('state1') ? h : 0}` }));
+    },
+
+    // ---- v1.1 Universal Social Hub (simulated networks; real ones run in lumosd/social.py)
+    'social.accounts': () => Object.fromEntries(['steam', 'xbox', 'psn', 'nintendo'].map((p) => [p, { linked: !!state.social.linked[p], name: state.social.linked[p] || null, id: state.social.linked[p] ? `sim-${p}` : null, experimental: p === 'psn' || p === 'nintendo' }])),
+    'social.link': ({ platform, credentials = {} }) => {
+      const name = { steam: 'Spieler1', xbox: 'Spieler1X', psn: 'Spieler1_PSN', nintendo: 'Switch-Spieler' }[platform];
+      if (!name) throw new Error('Unbekannte Plattform');
+      if (!Object.keys(credentials).length) throw new Error('Zugangsdaten erforderlich');
+      state.social.linked[platform] = name;
+      return { ok: true, name, id: `sim-${platform}` };
+    },
+    'social.unlink': ({ platform }) => (delete state.social.linked[platform], { ok: true }),
+    'social.xbox_device_start': () => ((state.social.polls = 0), { userCode: 'SIM4-C0DE', url: 'https://microsoft.com/link', interval: 2, expiresIn: 900 }),
+    'social.xbox_device_poll': () => (++state.social.polls < 2 ? { status: 'pending' } : ((state.social.linked.xbox = 'Spieler1X'), { status: 'linked', name: 'Spieler1X' })),
+    'social.friends': () => ({ friends: SOCIAL_FRIENDS().filter((f) => state.social.linked[f.platform]), errors: {} }),
+    'social.search': ({ query, platforms }) => {
+      const q = String(query).toLowerCase();
+      const pool = SOCIAL_DIRECTORY.filter((u) => u.name.toLowerCase().includes(q) && state.social.linked[u.platform] && (!platforms || platforms.includes(u.platform)));
+      return { results: pool.map((u) => ({ ...u, status: 'offline', game: null, text: '' })), errors: {} };
+    },
+    'social.add': ({ platform, id }) => (platform === 'steam' ? { ok: true, deeplink: `steam://friends/add/${id}` } : platform === 'xbox' ? { ok: true } : (() => { throw new Error(`${platform}: Freundschaftsanfragen sind über die Plattform-API nicht möglich`); })()),
+    'social.messages': ({ platform, friendId }) => (platform === 'xbox' ? { supported: true, messages: state.social.chats[friendId] || [] } : { supported: platform === 'steam' ? 'deeplink' : false, messages: [] }),
+    'social.send': ({ platform, friendId, text }) => {
+      if (platform === 'steam') return { ok: true, deeplink: `steam://friends/message/${friendId}` };
+      if (platform !== 'xbox') throw new Error(`${platform}: Nachrichten werden von der Plattform nicht unterstützt`);
+      const list = (state.social.chats[friendId] ||= []);
+      list.push({ id: `m${list.length}`, text, t: now(), mine: true });
+      setTimeout(() => list.push({ id: `r${list.length}`, text: 'Bin gleich online 👍', t: now(), mine: false }), 3500);
+      return { ok: true };
     },
     'system.logs': ({ limit = 300 } = {}) => state.logs.slice(-limit),
     'process.list': () => [

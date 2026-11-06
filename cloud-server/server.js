@@ -57,6 +57,8 @@ export function createServer({ dataDir = process.env.LUMOS_CLOUD_DATA || path.jo
     hits.set(k, h);
   };
 
+  const presence = new Map();
+  const typing = new Map();
   const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const newCode = () => {
     let c;
@@ -324,6 +326,48 @@ export function createServer({ dataDir = process.env.LUMOS_CLOUD_DATA || path.jo
       (db.messages[pairKey(u.id, m[1])] ||= {})[msg.id] = msg;
       await store.save();
       return reply(201, msg);
+    }],
+    // v1.1 username search (prefix match on display name, needs 3+ chars, max 10 hits)
+    ['GET', /^\/v1\/users\/search$/, async (req, _m, ip) => {
+      rateLimit(ip, 'usersearch', 60);
+      const u = auth(req);
+      const q = String(new URL(req.url, 'http://x').searchParams.get('q') || '').trim().toLowerCase();
+      if (q.length < 3) throw new HttpError(400, 'Mindestens 3 Zeichen');
+      return Object.values(db.users)
+        .filter((x) => x.id !== u.id && (x.displayName || '').toLowerCase().includes(q))
+        .slice(0, 10)
+        .map((x) => ({ id: x.id, name: x.displayName, code: ensureCode(x), friend: areFriends(u.id, x.id) }));
+    }],
+    // v1.1 rich presence + typing indicators (ephemeral, memory only)
+    ['PUT', /^\/v1\/presence$/, async (req) => {
+      const u = auth(req);
+      const b = await json(req);
+      const status = ['online', 'away', 'busy', 'offline'].includes(b.status) ? b.status : 'online';
+      const str = (x, n) => (x == null ? null : String(x).slice(0, n));
+      presence.set(u.id, { status, game: str(b.game, 120), cover: str(b.cover, 300), since: Number(b.since) || null, party: b.party && Number(b.party.max) ? { size: Math.min(99, Number(b.party.size) || 1), max: Math.min(99, Number(b.party.max)) } : null, updatedAt: Date.now() });
+      return { ok: true };
+    }],
+    ['GET', /^\/v1\/presence$/, async (req) => {
+      const u = auth(req);
+      const out = {};
+      for (const f of Object.values(db.friends)) {
+        if (f.status !== 'accepted' || (f.a !== u.id && f.b !== u.id)) continue;
+        const id = f.a === u.id ? f.b : f.a;
+        const p = presence.get(id);
+        const stale = !p || Date.now() - p.updatedAt > 150000; // 2.5 min without heartbeat = offline
+        out[id] = stale ? { status: 'offline', lastSeen: p?.updatedAt || db.users[id]?.lastSeen || null } : p;
+      }
+      return out;
+    }],
+    ['POST', /^\/v1\/typing\/([\w-]{8,64})$/, async (req, m) => {
+      const u = auth(req);
+      if (!areFriends(u.id, m[1])) throw new HttpError(403, 'Nur mit bestätigten Freunden');
+      typing.set(`${u.id}>${m[1]}`, Date.now());
+      return { ok: true };
+    }],
+    ['GET', /^\/v1\/typing\/([\w-]{8,64})$/, async (req, m) => {
+      const u = auth(req);
+      return { typing: Date.now() - (typing.get(`${m[1]}>${u.id}`) || 0) < 5000 };
     }],
     // media (shared clips/screenshots): uploader + their friends may read
     ['PUT', /^\/v1\/media$/, async (req) => {

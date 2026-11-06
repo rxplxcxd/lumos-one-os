@@ -18,6 +18,8 @@
 - Eingebautes Spiel **Lumos Orbit**; erscheint auch auf echter Hardware in der Bibliothek.
 - Schnellzugriff: Energiesparen, HUD, Nachtmodus, EQ-Profil, Clip, Screenshot, Suche, Task-Manager, Terminal, Profil wechseln. Dock: Freunde, Aufnahmen, Terminal.
 
+- **Universal Social Hub**: einheitliche Freundesliste und Posteingang für LumosOS, Steam, Xbox, PSN und Nintendo; Smart Friend Finder über alle verknüpften Netzwerke; Rich Presence (Status, Spiel + Cover, Session, Party); Profilkarten; Chat mit Emoji, Clips, Party-Einladungen, Tippt-Anzeige und Gelesen-Status; Supabase-Realtime-Push; Homescreen-Widget „Freunde“; Einstellungen → Konten & Verknüpfungen (Steam-API-Schlüssel, Xbox-Gerätecode, PSN-NPSSO, Nintendo über nxapi). Backend: `daemon/lumosd/social.py` mit AES-256-GCM-Token-Tresor; REST/Supabase um Präsenz, Tippen und Nutzernamen-Suche erweitert (`schema_v1_1_social.sql`).
+
 ### Behoben
 - Bildschirmtastatur, Autofill- und Toast-Overlays konnten nach rechts verrutschen → per Portal im `<body>` und Flex-Zentrierung.
 - Browser-Vorschau: ein abgebrochener Verbindungsversuch zu lumosd meldete nachträglich „getrennt“ und überschrieb den Simulator-Status (keine Systemwerte, Polling aus).
@@ -29,4 +31,5 @@
 ### Hinweise
 - Die UI ist weiterhin modulares **JavaScript (JSX)** mit JSDoc – keine TypeScript-Migration in dieser Version, um das System stabil zu halten.
 - 3D-Figuren werden zur Laufzeit von jsDelivr bzw. raw.githubusercontent.com geladen und danach offline genutzt; saisonale Grafiken und Klänge sind vollständig prozedural (keine Fremd-Assets).
+- Social Hub: Steam, Xbox, PSN und Nintendo wurden nur gegen gemockte HTTP-Antworten getestet (Tests mit den dokumentierten Antwortformaten) – die echten Dienste waren im Entwicklungs-Container nicht erreichbar. PSN/Nintendo nutzen inoffizielle Schnittstellen. Plattformgrenzen (z. B. kein Steam-/PSN-Chat per API) stehen im README.
 - Nicht im Entwicklungs-Container verifizierbar: echte Hardware (ESP32-Build, Sensoren, gpu-screen-recorder, MangoHud, PipeWire-EQ), Flathub-Netzzugriff und ein Live-Supabase-Projekt. Alles andere ist durch Tests (Vitest, node:test, pytest, native Firmware-Tests) und Browser-Durchläufe abgedeckt.

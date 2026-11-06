@@ -384,7 +384,15 @@ export const addFriend = async (code) => {
 };
 export const acceptFriend = async (id) => (await adapter.acceptFriend(id), refreshSocial());
 export const removeFriend = async (id) => (await adapter.removeFriend(id), refreshSocial());
+export const adapterRef = () => adapter;
 export const listMessages = (id, after) => adapter.listMessages(id, after);
+export const sendTyping = (id) => adapter?.sendTyping?.(id)?.catch?.(() => {});
+export const isTyping = (id) => (adapter?.isTyping ? adapter.isTyping(id).catch(() => false) : Promise.resolve(false));
+
+/** Realtime delivery: Supabase pushes (websocket); the self-hosted server falls back to polling in the UI. */
+export function subscribeRealtime(handlers) {
+  return adapter?.subscribe ? adapter.subscribe(handlers) : null;
+}
 export const sendMessage = (id, msg) => adapter.sendMessage(id, msg);
 export const uploadMedia = (blob, title) => adapter.uploadMedia(blob, title);
 export const fetchMedia = (id, att) => adapter.fetchMedia(id, att);

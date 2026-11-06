@@ -23,7 +23,7 @@ const APPS = [
   ['store', 'Store', 'apps flathub installieren'], ['library', 'Bibliothek', 'spiele games'], ['notes', 'Notizen', 'notes'], ['calculator', 'Rechner', 'taschenrechner'],
   ['keychain', 'Passwörter', 'schlüsselbund keychain'], ['avatar', 'Avatar-Studio', 'profil charakter'], ['files', 'Dateien', 'usb sideload'], ['cloud', 'Lumos Cloud', 'saves'],
   ['updater', 'Sync & Update', 'update ota'], ['settings', 'Einstellungen', 'settings'], ['terminal', 'Terminal', 'shell konsole logs'], ['taskmanager', 'Task-Manager', 'prozesse beenden'],
-  ['captures', 'Aufnahmen', 'clips screenshots editor'], ['social', 'Freunde & Chat', 'nachrichten'], ['browser', 'Web', 'internet browser'],
+  ['captures', 'Aufnahmen', 'clips screenshots editor'], ['social', 'Freunde & Chat', 'nachrichten messenger inbox freunde suchen xbox psn steam'], ['browser', 'Web', 'internet browser'],
 ];
 const SETTINGS = [
   ['system', 'System', 'gerätename sprache uhr wetter'], ['look', 'Darstellung & Farben', 'farbschema theme glas kontrast'], ['appearance', 'Hintergrund', 'wallpaper shader eigenes bild'],
@@ -33,7 +33,7 @@ const SETTINGS = [
   ['network', 'Netzwerk & Bluetooth', 'wlan wifi bluetooth kopplen'], ['controllers', 'Controller & Gyro', 'gamepad usb xbox dualsense tester'], ['keyboard', 'Tastatur & Steuerung', 'tastenbelegung cursor'],
   ['haptics', 'Haptik', 'vibration'], ['faceid', 'Face ID & Code', 'gesicht pin'], ['apps', 'Apps & Berechtigungen', 'rechte sensoren netzwerk profile fps tdp'],
   ['family', 'Familie & Kindersicherung', 'profile kinder gast pin zeitlimit'], ['overlay', 'Leistungs-HUD & Aufnahme', 'fps overlay mangohud clip'], ['seasonal', 'Saisonale Themen', 'halloween weihnachten'],
-  ['cloud', 'Cloud-Dienste', 'supabase backend'], ['updates', 'Softwareupdate', 'kanal'], ['developer', 'Entwickler', 'debug simulator'],
+  ['accounts', 'Konten & Verknüpfungen', 'steam xbox psn playstation nintendo konto verknüpfen login token'], ['cloud', 'Cloud-Dienste', 'supabase backend'], ['updates', 'Softwareupdate', 'kanal'], ['developer', 'Entwickler', 'debug simulator'],
 ];
 
 function score(q, ...fields) {

@@ -158,4 +158,20 @@ export class RestAdapter {
   async getManifest(id) {
     return (await this.#fetch(`/v1/saves/${encodeURIComponent(id)}/manifest`)).files;
   }
+  searchUsers(q) {
+    return this.#fetch(`/v1/users/search?q=${encodeURIComponent(q)}`);
+  }
+  // v1.1 presence / typing (polled by cloudService)
+  setPresence(p) {
+    return this.#fetch('/v1/presence', { method: 'PUT', json: p });
+  }
+  listPresence() {
+    return this.#fetch('/v1/presence');
+  }
+  sendTyping(friendId) {
+    return this.#fetch(`/v1/typing/${friendId}`, { method: 'POST', json: {} });
+  }
+  async isTyping(friendId) {
+    return (await this.#fetch(`/v1/typing/${friendId}`)).typing;
+  }
 }

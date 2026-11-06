@@ -10,6 +10,7 @@ export const WIDGET_TYPES = {
   clock: { label: 'Uhr & Kalender', sizes: [2, 4, 6] },
   controllers: { label: 'Controller', sizes: [2, 4] },
   cloud: { label: 'Lumos Cloud', sizes: [2, 4] },
+  social: { label: 'Freunde (alle Netzwerke)', sizes: [2, 4, 6] },
   notes: { label: 'Notizen', sizes: [2, 4, 6] },
   downloads: { label: 'Downloads', sizes: [2, 4] },
 };
@@ -22,6 +23,7 @@ const DEFAULT_LAYOUT = [
   { id: 'w5', type: 'controllers', size: 2 },
   { id: 'w6', type: 'quick', size: 2 },
   { id: 'w7', type: 'cloud', size: 2 },
+  { id: 'w8', type: 'social', size: 4 },
 ];
 
 export const useWidgets = create(() => ({ layout: loadJSON('lumos.widgets', DEFAULT_LAYOUT) }));

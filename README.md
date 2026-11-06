@@ -82,9 +82,26 @@ Kurzüberblick (Details in [`CHANGELOG.md`](CHANGELOG.md)):
 * **Web** mit **Bild-in-Bild** (YouTube/Twitch, auch als Overlay über Spielen), zuverlässige **Passwort-Sichern/Autofill-Leiste**, Face ID als **Dynamic-Island-Pille** oben.
 * **Audio-Equalizer** (5 Bänder, 7 Profile, echte Frequenzkurve), **Mehrbenutzer + Kindersicherung** (Profile mit PIN/Face ID, Eltern-PIN, Altersfreigaben USK/PEGI über OARS, Tageslimit, Freigabelisten), **Nachtmodus** (immer / Sonnenuntergang–Sonnenaufgang / Zeitplan), adaptive Helligkeit, **Pixel-Shift** und Dimmen statischer Elemente.
 * **Saisonale Themen** – Halloween, Weihnachten, Silvester, Ostern, Valentinstag automatisch nach Datum (oder fest gewählt): Partikel, Lichterketten, Kerzenflackern, Feuerwerk, festliches Dock, synthetische Jingles und versteckte Kürbisse/Ostereier.
+* **Universal Social Hub** – *Freunde & Chat* bündelt **LumosOS, Steam, Xbox, PlayStation und Nintendo**: Smart Friend Finder (ein Nutzername durchsucht alle verknüpften Netzwerke gleichzeitig, Filter je Plattform, Badges/Avatare/IDs, „Hinzufügen/Folgen“), **einheitlicher Posteingang**, Rich Presence (Online/Abwesend/„Zuletzt online vor X Std.“, Spiel mit Cover, Session-Dauer, Party „3/4“), Profilkarten, Emoji, Clip-/Screenshot-Anhänge, Party-Einladungen, „Tippt gerade …“ und Gelesen-/Gesendet-Status, Echtzeit über **Supabase Realtime** (Websocket; beim selbst gehosteten Server Polling), Freunde-Widget für den Homescreen, zentrale Verknüpfung unter **Einstellungen → Konten & Verknüpfungen**. Welche Plattform was kann, steht in [Social Hub: Was geht wo?](#social-hub-was-geht-wo).
 * **Neues Spiel** *Lumos Orbit* (eingebaut, funktioniert auch in der Browser-Vorschau).
 
-**Supabase-Nutzer:** für die neuen Cloud-Funktionen zusätzlich `cloud-server/supabase/schema_v1_1.sql` einmal im SQL-Editor ausführen (siehe [Lumos Cloud](#lumos-cloud)).
+**Supabase-Nutzer:** für die neuen Cloud-Funktionen zusätzlich `cloud-server/supabase/schema_v1_1.sql` und `schema_v1_1_social.sql` einmal im SQL-Editor ausführen (siehe [Lumos Cloud](#lumos-cloud)).
+
+## Social Hub: Was geht wo?
+
+Die Plattformen stellen ihre Funktionen sehr unterschiedlich bereit. Lumos nutzt offizielle Schnittstellen, wo es sie gibt – und sagt in der Oberfläche ehrlich, wo nicht.
+
+| | Anmeldung | Suche | Freunde & Präsenz | Chat | Hinzufügen |
+|---|---|---|---|---|---|
+| **LumosOS** | Lumos Cloud / Supabase | Nutzername (≥ 3 Zeichen) | ✓ Echtzeit | ✓ Text, Clips, Party, Tippen, Gelesen | ✓ Anfrage / Code |
+| **Steam** | Web-API-Schlüssel + Profil | Vanity-URL/SteamID, Namen deiner Freunde¹ | ✓ (Profil muss öffentlich sein) | → öffnet Steam-Client² | → Steam-Client² |
+| **Xbox Live** | Microsoft-Gerätecode (eigene Azure-App-ID) | ✓ Gamertag | ✓ | ✓ Lesen & Senden | ✓ |
+| **PlayStation** *(experimentell)* | NPSSO-Token | ✓ Online-ID | ✓ | – (keine API) | – (keine API) |
+| **Nintendo** *(experimentell)* | lokaler nxapi-Server | – (nur Freundescode) | ✓ | – (keine API) | – |
+
+¹ Steam hat keine öffentliche Namenssuche. ² Steam bietet keine öffentliche Chat-/Freundes-Schreib-API; Lumos öffnet `steam://friends/…` im Client.
+PSN und Nintendo haben keine offiziellen öffentlichen APIs: Lumos nutzt dieselben Endpunkte wie die Open-Source-Projekte [psn-api](https://github.com/achievements-app/psn-api) und [nxapi](https://github.com/samuelthomas2774/nxapi); sie können sich jederzeit ändern oder gegen die Nutzungsbedingungen der Plattform verstoßen – Nutzung auf eigene Verantwortung. Token werden im Daemon AES-256-GCM-verschlüsselt gespeichert (Schlüsseldatei `0600` auf demselben Gerät – schützt vor versehentlichem Auslesen/Backups, nicht vor Root-Zugriff).
+**Supabase:** nach `schema_v1_1.sql` zusätzlich `cloud-server/supabase/schema_v1_1_social.sql` ausführen (Präsenz, Realtime-Publikation, Nutzernamen-Suche).
 
 ## Bedienung
 

@@ -152,7 +152,7 @@ export class SupabaseAdapter {
     );
     const unread = rows.filter((r) => r.recipient === uid && !r.read_at).map((r) => r.id);
     if (unread.length) await this.sb.from('messages').update({ read_at: new Date().toISOString() }).in('id', unread);
-    return rows.map((r) => ({ id: r.id, from: r.sender, to: r.recipient, text: r.body, attachment: r.attachment, t: Date.parse(r.created_at), mine: r.sender === uid }));
+    return rows.map((r) => ({ id: r.id, from: r.sender, to: r.recipient, text: r.body, attachment: r.attachment, t: Date.parse(r.created_at), mine: r.sender === uid, read: !!r.read_at }));
   }
   async sendMessage(friendId, { text, attachment }) {
     const r = SupabaseAdapter.#check(await this.sb.from('messages').insert({ sender: this.#uid(), recipient: friendId, body: String(text || '').slice(0, 4000), attachment: attachment || null }).select().single());
@@ -178,5 +178,52 @@ export class SupabaseAdapter {
   async getManifest(id) {
     const r = SupabaseAdapter.#check(await this.sb.from('saves').select('manifest').eq('user_id', this.#uid()).eq('save_id', id).maybeSingle());
     return r?.manifest || [];
+  }
+  async searchUsers(q) {
+    const rows = SupabaseAdapter.#check(await this.sb.rpc('lumos_search_users', { p_q: q }));
+    return rows.map((r) => ({ id: r.user_id, name: r.display_name, code: r.friend_code, friend: r.is_friend }));
+  }
+  // v1.1 — rich presence, typing and push delivery via Supabase Realtime
+  async setPresence(p) {
+    const row = { user_id: this.#uid(), status: p.status, game: p.game || null, cover: p.cover || null, since: p.since ? new Date(p.since).toISOString() : null, party: p.party || null, updated_at: new Date().toISOString() };
+    SupabaseAdapter.#check(await this.sb.from('presence').upsert(row));
+  }
+  async listPresence() {
+    const rows = SupabaseAdapter.#check(await this.sb.from('presence').select('*'));
+    const out = {};
+    for (const r of rows) {
+      if (r.user_id === this.#uid()) continue;
+      const stale = Date.now() - Date.parse(r.updated_at) > 150000;
+      out[r.user_id] = stale ? { status: 'offline', lastSeen: Date.parse(r.updated_at) } : { status: r.status, game: r.game, cover: r.cover, since: r.since ? Date.parse(r.since) : null, party: r.party, updatedAt: Date.parse(r.updated_at) };
+    }
+    return out;
+  }
+  /** Typing goes over a broadcast channel per recipient (ephemeral, never stored). */
+  sendTyping(friendId) {
+    this.#typingCh ||= new Map();
+    let ch = this.#typingCh.get(friendId);
+    if (!ch) {
+      ch = this.sb.channel(`typing:${friendId}`, { config: { broadcast: { self: false } } });
+      ch.subscribe();
+      this.#typingCh.set(friendId, ch);
+    }
+    return ch.send({ type: 'broadcast', event: 'typing', payload: { from: this.#uid() } });
+  }
+  #typingCh = null;
+  /** Subscribes to new messages (RLS-filtered postgres_changes), read receipts and typing. */
+  subscribe({ onMessage, onRead, onTyping, onPresence }) {
+    const uid = this.#uid();
+    const map = (r) => ({ id: r.id, from: r.sender, to: r.recipient, text: r.body, attachment: r.attachment, t: Date.parse(r.created_at), mine: r.sender === uid, read: !!r.read_at });
+    const ch = this.sb
+      .channel(`lumos:${uid}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient=eq.${uid}` }, (e) => onMessage?.(map(e.new)))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `sender=eq.${uid}` }, (e) => e.new.read_at && onRead?.(map(e.new)))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'presence' }, () => onPresence?.())
+      .subscribe();
+    const tch = this.sb.channel(`typing:${uid}`).on('broadcast', { event: 'typing' }, ({ payload }) => onTyping?.(payload.from)).subscribe();
+    return () => {
+      this.sb.removeChannel(ch);
+      this.sb.removeChannel(tch);
+    };
   }
 }
