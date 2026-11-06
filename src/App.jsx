@@ -11,6 +11,12 @@ import LockScreen from '@/components/shell/LockScreen.jsx';
 import HomeScreen from '@/components/home/HomeScreen.jsx';
 import ErrorBoundary from '@/components/shell/ErrorBoundary.jsx';
 import OnScreenKeyboard from '@/components/shell/OnScreenKeyboard.jsx';
+import FocusLayer from '@/components/shell/FocusLayer.jsx';
+import Ambient from '@/components/shell/Ambient.jsx';
+import { applyUiTheme } from '@/lib/themes.js';
+import { configureSounds } from '@/services/sounds.js';
+import { setMotionSpeed } from '@/lib/motion.js';
+import { setToastDuration } from '@/store/ui.js';
 import { useUI, setBooted, setLocked } from '@/store/ui.js';
 import { useSettings, startSettingsEffects } from '@/store/settings.js';
 import { startSystemFeeds } from '@/store/system.js';
@@ -46,6 +52,10 @@ export default function App() {
   const locked = useUI((s) => s.locked);
   const reduceMotion = useSettings((s) => s.values.reduceMotion);
   const uiScale = useSettings((s) => s.values.uiScale);
+  const v = useSettings((s) => s.values);
+  const navDir = useUI((s) => s.navDir);
+  const transition = { style: reduceMotion ? 'fade' : v.transitionStyle, dir: navDir };
+  setMotionSpeed(v.animationSpeed);
 
   useInputSystem();
   useFaceIdEvents();
@@ -72,6 +82,20 @@ export default function App() {
   }, [uiScale, reduceMotion]);
 
   useEffect(() => {
+    applyUiTheme({ theme: v.uiTheme, glassOpacity: v.glassOpacity, glassBlur: v.glassBlur, reduceTransparency: v.reduceTransparency, highContrast: v.highContrast, boldText: v.boldText, focusStyle: v.focusStyle });
+  }, [v.uiTheme, v.glassOpacity, v.glassBlur, v.reduceTransparency, v.highContrast, v.boldText, v.focusStyle]);
+  useEffect(() => configureSounds({ enabled: v.uiSounds, theme: v.uiSoundTheme, volume: v.uiSoundVolume }), [v.uiSounds, v.uiSoundTheme, v.uiSoundVolume]);
+  useEffect(() => setToastDuration(() => useSettings.getState().values.toastDuration * 1000), []);
+  useEffect(() => {
+    if (v.bootAnimation === 'off') {
+      setRevealed(true);
+      setBoot(false);
+      setBooted();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (revealed) setTimeout(() => ensureFocus(), 200);
   }, [revealed, top]);
 
@@ -83,15 +107,15 @@ export default function App() {
       <motion.div
         className="fixed inset-0"
         initial={{ opacity: 0, scale: 1.04, filter: 'brightness(2.2) blur(10px)' }}
-        animate={revealed ? { opacity: 1, scale: 1, filter: 'brightness(1) blur(0px)' } : {}}
+        animate={revealed ? { opacity: 1, scale: 1, filter: 'brightness(1) blur(0px)', transitionEnd: { filter: 'none' } } : {}}
         transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
       >
         {ready && (
           <>
             <StatusBar />
             <ErrorBoundary key={top.screen}>
-              <AnimatePresence mode="popLayout">
-                <motion.div key={`${top.screen}:${JSON.stringify(top.params)}`} className="absolute inset-0" variants={screenVariants} initial="initial" animate="animate" exit="exit">
+              <AnimatePresence mode="popLayout" custom={transition}>
+                <motion.div key={`${top.screen}:${JSON.stringify(top.params)}`} className="absolute inset-0" custom={transition} variants={screenVariants} initial="initial" animate="animate" exit="exit">
                   <Suspense fallback={null}>{Screen && <Screen {...top.params} />}</Suspense>
                 </motion.div>
               </AnimatePresence>
@@ -102,13 +126,15 @@ export default function App() {
             <Suspense fallback={null}>{devPanel && <DevPanel />}</Suspense>
             {locked && <LockScreen />}
             <OnScreenKeyboard />
+            <Ambient />
           </>
         )}
       </motion.div>
       <FaceIDSheet />
+      <FocusLayer />
       {boot && (
         <BootAnimation
-          fast={reduceMotion || sessionStorage.getItem('lumos.booted') === '1'}
+          fast={reduceMotion || v.bootAnimation === 'short' || sessionStorage.getItem('lumos.booted') === '1'}
           onReveal={() => setRevealed(true)}
           onDone={() => {
             setBoot(false);

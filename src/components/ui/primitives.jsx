@@ -1,11 +1,15 @@
 // Shared building blocks: every interactive element is controller-navigable (data-nav),
 // spring-animated and wired to the haptics engine.
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { spring } from '@/lib/motion.js';
 import { haptic } from '@/services/haptics.js';
-import { back } from '@/store/ui.js';
+import { back, useUI } from '@/store/ui.js';
+import { useSettings } from '@/store/settings.js';
+import { glyphFor } from '@/lib/controllers.js';
+import { keyLabel, resolveBindings } from '@/lib/keybindings.js';
 
 const cx = (...a) => a.filter(Boolean).join(' ');
 
@@ -229,7 +233,8 @@ export function Progress({ value, className = '', thin }) {
 }
 
 export function Sheet({ open, onClose, children, className = '', title }) {
-  return (
+  // portal: sheets must never be positioned relative to an animated (transformed/filtered) screen
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-50 flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -247,7 +252,8 @@ export function Sheet({ open, onClose, children, className = '', title }) {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 
@@ -271,11 +277,27 @@ export const TextField = forwardRef(function TextField({ value, onChange, placeh
   );
 });
 
-const GLYPH = { a: 'A', b: 'B', x: 'X', y: 'Y', lb: 'L', rb: 'R', start: '≡', home: '◉' };
+function Pill({ children }) {
+  return <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/90 px-1.5 text-[0.62rem] font-bold text-ink-950">{children}</span>;
+}
+
+/** Button hint that shows the right glyph for the active input: controller family or bound keyboard key. */
 export function Hint({ k, children }) {
+  const fam = useUI((s) => s.padFamily);
+  const src = useUI((s) => s.inputSource);
+  const style = useSettings((s) => s.values.glyphStyle);
+  const kb = useSettings((s) => s.values.keyBindings);
+  const family = style === 'auto' ? fam : style;
+  const label = (key) => (src === 'keyboard' ? keyLabel(resolveBindings(kb)[key]?.[0]) : glyphFor(key, family));
   return (
     <span className="flex items-center gap-1.5 text-[0.75rem] text-mist-300">
-      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/90 px-1 text-[0.62rem] font-bold text-ink-950">{GLYPH[k] || k}</span>
+      <Pill>{label(k)}</Pill>
+      {k === 'lb' && (
+        <>
+          <span className="-mx-0.5 text-mist-500">/</span>
+          <Pill>{label('rb')}</Pill>
+        </>
+      )}
       {children}
     </span>
   );

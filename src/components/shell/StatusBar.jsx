@@ -7,6 +7,7 @@ import { useSettings } from '@/store/settings.js';
 import { useNow } from '@/components/ui/primitives.jsx';
 import { useProfiles, activeProfile } from '@/store/profile.js';
 import { spring } from '@/lib/motion.js';
+import AnimatedNumber from '@/components/ui/AnimatedNumber.jsx';
 
 export function BatteryGlyph({ percent, charging, className = '' }) {
   const p = percent ?? 0;
@@ -34,6 +35,8 @@ export function Avatar({ size = '2rem', className = '' }) {
 export default function StatusBar() {
   const now = useNow(1000);
   const h24 = useSettings((s) => s.values.clock24h);
+  const showSec = useSettings((s) => s.values.statusSeconds);
+  const showPct = useSettings((s) => s.values.statusBatteryPct);
   const battery = useSystem((s) => s.battery);
   const controllers = useSystem((s) => s.controllers);
   const dock = useSystem((s) => s.dock);
@@ -43,7 +46,7 @@ export default function StatusBar() {
   const cloud = useCloud((s) => ({ status: s.status, pending: s.pending }));
   const jobList = Object.values(jobs);
   const avg = jobList.length ? Math.round(jobList.reduce((a, j) => a + (j.percent || 0), 0) / jobList.length) : 0;
-  const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: !h24 });
+  const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', ...(showSec ? { second: '2-digit' } : {}), hour12: !h24 });
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex h-[3.5rem] items-center gap-4 px-10 text-[0.85rem] text-mist-100">
@@ -62,16 +65,16 @@ export default function StatusBar() {
               <span className="relative h-1 w-14 overflow-hidden rounded-full bg-white/15">
                 <motion.span className="absolute inset-y-0 left-0 rounded-full bg-white" animate={{ width: `${avg}%` }} transition={spring.soft} />
               </span>
-              <span className="tabular-nums">{avg}%</span>
+              <AnimatedNumber value={avg} format={(x) => `${Math.round(x)}%`} />
             </motion.span>
           )}
         </AnimatePresence>
         {dock.docked && <Tv className="h-4 w-4 text-lumen-400" />}
         {controllers.length > 0 && (
-          <span className="flex items-center gap-1">
+          <motion.span key={controllers.length} initial={{ scale: 1.5 }} animate={{ scale: 1 }} transition={spring.bouncy} className="flex items-center gap-1">
             <Gamepad2 className="h-4 w-4" />
             <span className="text-[0.72rem] tabular-nums text-mist-300">{controllers.length}</span>
-          </span>
+          </motion.span>
         )}
         {cloud.status === 'syncing' ? (
           <RefreshCw className="h-4 w-4 animate-spin text-mist-300" />
@@ -82,7 +85,7 @@ export default function StatusBar() {
         ) : null}
         {net?.wifi?.ssid || net?.ethernet ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4 text-mist-500" />}
         <span className="flex items-center gap-2">
-          {battery.percent != null && <span className="tabular-nums text-[0.8rem]">{Math.round(battery.percent)}%</span>}
+          {battery.percent != null && showPct && <AnimatedNumber value={battery.percent} format={(x) => `${Math.round(x)}%`} className="text-[0.8rem]" />}
           <BatteryGlyph percent={battery.percent} charging={battery.charging} />
         </span>
       </div>

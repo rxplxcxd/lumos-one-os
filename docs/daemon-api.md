@@ -25,12 +25,13 @@ Die erste Nachricht muss `auth.hello {token}` sein. Der Token wird bei jedem Sta
 | Sideload / Dateien | `sideload.inspect {path}` · `sideload.add {path, name}` · `sideload.remove {id}` · `fs.roots` · `fs.list {path}` |
 | Face ID | `faceid.status` · `faceid.verify {reason, timeout}` → `{ok, reason}` · `faceid.enroll {label}` · `faceid.remove {id}` · `faceid.clear` · `faceid.preview {on}` · `faceid.set {enabled}` · `faceid.test` |
 | Haptik | `haptics.play {pattern, target: all\|left\|right\|body, intensity}` · `haptics.set {enabled, intensity}` · `haptics.patterns` |
-| Controller | `controllers.list` · `controllers.configure {gyro_enabled, gyro_sensitivity, gyro_as_mouse, stick_deadzone, swap_ab}` · `controllers.identify {id}` · `controllers.calibrate {id}` |
+| Controller | `controllers.list` · `controllers.configure {gyro_enabled, gyro_sensitivity, gyro_as_mouse, stick_deadzone, swap_ab}` · `controllers.identify {id}` · `controllers.calibrate {id}` · `controllers.rumble {id, steps?}` · `controllers.assign {id, slot}` |
+| Tastatur-Bridge | `input.keyboard_pad {mode: off\|games\|always, bindings}` (KeyboardEvent.code je Aktion) · `input.shell_visible {visible}` |
 | Dock | `dock.status` |
 | Spielstände | `saves.list` · `saves.pack {id}` → `{archive, sha256}` · `saves.restore {id, archive}` |
 | Updates | `update.status` · `update.check {channel}` · `update.download` · `update.apply {archive?}` · `update.rollback` · `update.cleanup` · `update.usb_scan` · `update.pair_start` |
 | Medien | `media.status` · `media.control {action: toggle\|play\|pause\|next\|previous}` |
-| Simulator | `sim.state` · `sim.faceid {outcome: success\|fail\|none}` · `sim.battery {percent, charging}` · `sim.controller {side, attached, battery}` · `sim.controller_power {side, connected}` · `sim.dock {docked}` · `sim.button {button, pressed}` · `sim.gyro {pitch, roll \| reset}` |
+| Simulator | `sim.state` · `sim.faceid {outcome: success\|fail\|none}` · `sim.battery {percent, charging}` · `sim.controller {side, attached, battery}` · `sim.controller_power {side, connected}` · `sim.dock {docked}` · `sim.button {button, pressed}` · `sim.gyro {pitch, roll \| reset}` · `sim.usb_controller {model: xbox\|dualsense\|pro\|8bitdo\|generic, connected}` |
 
 `sim.*` (außer `sim.button`/`sim.gyro`) funktioniert nur mit `lumosd --simulate`.
 

@@ -100,7 +100,7 @@ export default function LibraryScreen() {
       }
       hints={
         <>
-          <Hint k="lb">/ R Filter</Hint>
+          <Hint k="lb">Filter</Hint>
           <Hint k="a">Starten</Hint>
           <Hint k="y">Optionen</Hint>
           <Hint k="b">Zurück</Hint>

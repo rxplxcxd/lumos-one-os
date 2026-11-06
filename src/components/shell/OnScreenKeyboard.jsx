@@ -116,10 +116,12 @@ export default function OnScreenKeyboard() {
   return (
     <AnimatePresence>
       {target && (
+        // centring lives on a static wrapper: framer-motion owns `transform` on the animated panel
+        <div key="osk" className="pointer-events-none fixed inset-x-0 bottom-3 z-[85] flex justify-center px-4">
         <motion.div
           data-osk=""
           data-nav-scope="85"
-          className="glass-strong fixed bottom-3 left-1/2 z-[85] w-[62rem] -translate-x-1/2 rounded-[1.8rem] p-3"
+          className="glass-strong pointer-events-auto w-[62rem] max-w-full rounded-[1.8rem] p-3"
           initial={{ y: 260, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 260, opacity: 0 }}
@@ -144,6 +146,7 @@ export default function OnScreenKeyboard() {
             <button data-nav="" onClick={close} aria-label="Tastatur schließen" className="nav-focus flex h-12 w-[4.9rem] items-center justify-center rounded-xl bg-white/[0.14]"><ChevronDown className="h-5 w-5" /></button>
           </div>
         </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

@@ -106,6 +106,27 @@ async def _run(cfg):
             det = await rpc.wait_event("controller.detached")
             assert det["side"] == "left" and det["transport"] == "ble"
 
+            # third-party USB controllers: classified, slotted, capped at 4 total
+            await rpc.call("sim.controller_power", {"side": "left", "connected": True})
+            await rpc.call("sim.usb_controller", {"model": "dualsense"})
+            att = await rpc.wait_event("controller.attached")
+            while att.get("side") != "pro":
+                att = await rpc.wait_event("controller.attached")
+            assert att["family"] == "playstation" and att["name"] == "DualSense"
+            await rpc.call("sim.usb_controller", {"model": "xbox"})
+            lst = await rpc.call("controllers.list")
+            assert len(lst) == 4 and sorted(c["slot"] for c in lst if c["side"] == "pro") == [2, 3]
+            with pytest.raises(RuntimeError, match="Maximal 4"):
+                await rpc.call("sim.usb_controller", {"model": "pro"})
+            await rpc.call("controllers.assign", {"id": att["id"], "slot": 4})
+            assert next(c for c in await rpc.call("controllers.list") if c["id"] == att["id"])["slot"] == 4
+            await rpc.call("sim.usb_controller", {"model": "dualsense", "connected": False})
+            assert (await rpc.wait_event("controller.detached"))["lost"] is True
+
+            # keyboard → virtual gamepad bridge accepts the UI binding table
+            r = await rpc.call("input.keyboard_pad", {"mode": "games", "bindings": {"a": ["Enter", "Space"], "up": ["ArrowUp"]}})
+            assert r["mode"] == "games"
+
             # dock → session env for gamescope
             await rpc.call("sim.dock", {"docked": True})
             d = await rpc.wait_event("dock.changed")

@@ -98,6 +98,7 @@ export function activate() {
   const cur = currentFocus() || ensureFocus();
   if (!cur) return;
   if (cur.dataset.navHaptic !== 'none') haptic(cur.dataset.navHaptic || 'select');
+  window.dispatchEvent(new CustomEvent('lumos:activate', { detail: { el: cur } }));
   if (cur.matches('input:not([type=checkbox]):not([type=range]), textarea')) {
     cur.focus();
     window.dispatchEvent(new CustomEvent('lumos:osk', { detail: { target: cur } }));

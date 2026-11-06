@@ -130,7 +130,7 @@ export default function AvatarStudio() {
           <Button size="sm" variant="primary" icon={Save} onClick={save}>Sichern</Button>
         </>
       }
-      hints={<><Hint k="lb">/ R Kategorie</Hint><Hint k="a">Auswählen</Hint><Hint k="b">Zurück</Hint></>}
+      hints={<><Hint k="lb">Kategorie</Hint><Hint k="a">Auswählen</Hint><Hint k="b">Zurück</Hint></>}
     >
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
       <div className="flex h-full gap-6 px-10 pb-14">

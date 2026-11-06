@@ -7,7 +7,7 @@ export default {
       colors: {
         ink: { 950: '#050608', 900: '#0a0c10', 850: '#0f1217', 800: '#14181f', 700: '#1c212a', 600: '#272d38', 500: '#3a4250' },
         mist: { 50: '#f5f7fa', 100: '#e7ebf1', 200: '#c9d0db', 300: '#a3adbd', 400: '#7c8799', 500: '#5d6779' },
-        lumen: { DEFAULT: '#d8e4ff', 400: '#a9c2ff', 500: '#7fa3ff', 600: '#5b84f0' },
+        lumen: { DEFAULT: 'rgb(var(--lumen) / <alpha-value>)', 400: 'rgb(var(--lumen-400) / <alpha-value>)', 500: 'rgb(var(--lumen-500) / <alpha-value>)', 600: 'rgb(var(--lumen-600) / <alpha-value>)' },
         ok: '#5fd69a',
         warn: '#f2c46b',
         bad: '#ff6b6b',

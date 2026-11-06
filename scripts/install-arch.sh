@@ -24,7 +24,7 @@ if ! command -v yay >/dev/null; then
   sudo -u "${SUDO_USER:-nobody}" bash -c 'cd /tmp && rm -rf yay-bin && git clone https://aur.archlinux.org/yay-bin.git && cd yay-bin && makepkg -si --noconfirm' || echo "!! yay konnte nicht gebaut werden – AUR-Pakete manuell installieren"
 fi
 if command -v yay >/dev/null; then
-  sudo -u "${SUDO_USER:-root}" yay -S --needed --noconfirm howdy-bin ryzenadj-git framework-system-git linux-enable-ir-emitter python-bleak python-sdnotify || true
+  sudo -u "${SUDO_USER:-root}" yay -S --needed --noconfirm howdy-bin ryzenadj-git framework-system-git linux-enable-ir-emitter python-bleak python-sdnotify xpadneo-dkms || true
 fi
 
 echo "==> Benutzer $KIOSK_USER"
@@ -56,6 +56,9 @@ install -Dm755 system/session/lumos-session /usr/bin/lumos-session
 install -Dm644 system/session/lumos.desktop /usr/share/wayland-sessions/lumos.desktop
 install -Dm644 shared/haptics.json /usr/share/lumos/haptics.json
 install -Dm644 system/udev/99-lumos.rules /etc/udev/rules.d/99-lumos.rules
+install -Dm644 system/udev/70-lumos-controllers.rules /etc/udev/rules.d/70-lumos-controllers.rules
+# third-party controller drivers: xpad, hid-playstation, hid-nintendo ship with the Arch kernel
+printf 'xpad\nhid_playstation\nhid_nintendo\n' > /etc/modules-load.d/lumos-controllers.conf
 install -Dm440 system/sudoers.d/lumos /etc/sudoers.d/lumos
 sed -i "s/^lumos /$KIOSK_USER /; s/Defaults:lumos/Defaults:$KIOSK_USER/" /etc/sudoers.d/lumos
 visudo -cf /etc/sudoers.d/lumos

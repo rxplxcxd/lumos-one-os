@@ -12,6 +12,10 @@ export const useUI = create(() => ({
   toasts: [],
   faceSheet: null, // { reason, state }
   impulse: 0, // bumps on every interaction → background ripple
+  navDir: 1, // 1 = push, -1 = pop (drives directional screen transitions)
+  padFamily: 'lumos',
+  inputSource: 'pointer', // pointer | touch | keyboard | pad
+  screensaver: false,
 }));
 
 const set = (p) => useUI.setState(p);
@@ -23,7 +27,7 @@ export function open(screen, params = {}) {
   const top = current();
   if (top.screen === screen && JSON.stringify(top.params) === JSON.stringify(params)) return;
   haptic('open');
-  set({ stack: screen === 'home' ? [{ screen: 'home', params: {} }] : [...get().stack, { screen, params }] });
+  set({ navDir: 1, stack: screen === 'home' ? [{ screen: 'home', params: {} }] : [...get().stack, { screen, params }] });
 }
 
 export function back() {
@@ -33,7 +37,7 @@ export function back() {
   if (s.editWidgets) return set({ editWidgets: false });
   if (s.stack.length > 1) {
     haptic('close');
-    set({ stack: s.stack.slice(0, -1) });
+    set({ navDir: -1, stack: s.stack.slice(0, -1) });
     return true;
   }
   haptic('nav.edge');
@@ -42,7 +46,7 @@ export function back() {
 
 export const goHome = () => {
   if (get().stack.length > 1) haptic('close');
-  set({ stack: [{ screen: 'home', params: {} }], quickMenu: false });
+  set({ navDir: -1, stack: [{ screen: 'home', params: {} }], quickMenu: false });
 };
 
 export const setBooted = () => set({ booted: true });
@@ -56,6 +60,12 @@ let toastSeq = 1;
 export function toast(t) {
   const id = toastSeq++;
   set({ toasts: [...get().toasts, { id, kind: 'info', ...t }].slice(-4) });
-  setTimeout(() => set({ toasts: get().toasts.filter((x) => x.id !== id) }), t.duration ?? 3800);
+  setTimeout(() => set({ toasts: get().toasts.filter((x) => x.id !== id) }), t.duration ?? toastMs());
   return id;
+}
+
+let toastMsFn = () => 3800;
+export const setToastDuration = (fn) => (toastMsFn = fn);
+function toastMs() {
+  return toastMsFn();
 }

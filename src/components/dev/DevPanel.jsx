@@ -1,7 +1,7 @@
 // Developer control panel & hardware simulator (Ctrl+Shift+D / F12).
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FlaskConical, X, ScanFace, Gamepad2, Battery, Tv, Activity, Radio } from 'lucide-react';
+import { FlaskConical, X, ScanFace, Gamepad2, Battery, Tv, Activity, Radio, Usb } from 'lucide-react';
 import { Toggle, Slider, Button } from '@/components/ui/primitives.jsx';
 import { request, on, bridgeMode } from '@/services/bridge.js';
 import { verifyFace } from '@/services/faceid.js';
@@ -93,6 +93,20 @@ export default function DevPanel() {
               </div>
             );
           })}
+        </Card>
+
+        <Card icon={Usb} title="USB- & Bluetooth-Controller (Drittanbieter)">
+          <div className="grid grid-cols-1 gap-1.5">
+            {[['xbox', 'Xbox Wireless (BT)'], ['dualsense', 'DualSense (USB)'], ['pro', 'Switch Pro (BT)'], ['8bitdo', '8BitDo (USB)'], ['generic', 'Generisches HID-Gamepad']].map(([m, l]) => {
+              const on = controllers.some((c) => c.id?.startsWith('ext-') && c.name && ((m === 'xbox' && c.family === 'xbox') || (m === 'dualsense' && c.family === 'playstation') || (m === 'pro' && c.name.includes('Pro')) || (m === '8bitdo' && c.name.includes('8BitDo')) || (m === 'generic' && c.family === 'generic')));
+              return (
+                <div key={m} className="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-1.5 text-[0.8rem]">
+                  {l}
+                  <Toggle checked={on} onChange={(v) => sim('usb_controller', { model: m, connected: v })} label={l} />
+                </div>
+              );
+            })}
+          </div>
         </Card>
 
         <Card icon={Gamepad2} title="Virtuelles Gamepad">

@@ -97,7 +97,7 @@ export default function BrowserApp({ url: initial }) {
         {electron ? <webview ref={wv} src={url} partition="persist:lumos-web" allowpopups="false" style={{ width: '100%', height: '100%' }} /> : <iframe title="web" src={url} className="h-full w-full" sandbox="allow-scripts allow-same-origin allow-forms" />}
         <AnimatePresence>
           {login && (
-            <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }} transition={spring.bouncy} className="absolute bottom-5 left-1/2 -translate-x-1/2">
+            <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }} transition={spring.bouncy} className="absolute inset-x-0 bottom-5 flex justify-center">
               <Button variant="primary" size="lg" icon={KeyRound} autoFocus onClick={fill}>
                 Passwort für {login.origin} mit Face ID einsetzen
               </Button>

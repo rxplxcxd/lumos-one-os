@@ -62,6 +62,17 @@ const PREVIEW = {
   aurora: 'linear-gradient(160deg,#081014 0%,#13363a 40%,#2b2350 75%,#0a0b12 100%)',
   silk: 'linear-gradient(120deg,#0d0f13 0%,#2a2e38 35%,#11141a 55%,#3a3f4c 75%,#0d0f13 100%)',
   ember: 'radial-gradient(circle at 30% 60%,#4a2a20 0%,#1a1012 45%,#0a0a0f 100%)',
+  nebula: 'radial-gradient(circle at 35% 40%,#2a1d42 0%,#101a2e 40%,#040509 80%)',
+  ocean: 'linear-gradient(180deg,#02070c 0%,#06212b 60%,#0b3a44 100%)',
+  mesh: 'linear-gradient(125deg,#141a2c 0%,#2c1f46 40%,#1c3440 70%,#38201b 100%)',
+  rain: 'radial-gradient(circle at 25% 60%,#4a3018 0%,transparent 25%),radial-gradient(circle at 70% 55%,#1c2c55 0%,transparent 30%),#07080d',
+  dunes: 'linear-gradient(180deg,#0a0b14 0%,#2a1c14 55%,#3b281b 70%,#1a120e 100%)',
+  snow: 'linear-gradient(180deg,#05070c 0%,#141a26 70%,#202838 100%)',
+  fireflies: 'radial-gradient(circle at 40% 60%,#3a3010 0%,transparent 12%),radial-gradient(circle at 65% 45%,#3a3010 0%,transparent 10%),linear-gradient(180deg,#05070a,#0a160e)',
+  grid: 'linear-gradient(180deg,#07080e 0%,#141a2c 48%,#3a4668 50%,#0b0d16 52%,#05060a 100%)',
+  ink: 'radial-gradient(circle at 50% 50%,#2a2e36 0%,#101216 50%,#050608 100%)',
+  prism: 'linear-gradient(115deg,#0a0b10 30%,#1c2540 42%,#2a1c3c 50%,#103030 58%,#0a0b10 70%)',
+  oled: 'linear-gradient(90deg,#000 0%,#06070a 50%,#000 100%)',
   custom: 'linear-gradient(135deg,#1c212a,#272d38)',
 };
 
@@ -83,7 +94,7 @@ export function AppearanceSection() {
   };
   return (
     <>
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      <div className="mb-6 grid grid-cols-4 gap-3">
         {THEMES.map((t) => {
           const active = v.background === t.key;
           return (
@@ -93,7 +104,7 @@ export function AppearanceSection() {
               whileFocus={{ scale: 1.04 }}
               transition={spring.snappy}
               onClick={() => (t.key === 'custom' && !customName ? fileRef.current?.click() : setSetting('background', t.key))}
-              className={`nav-focus relative h-[8.5rem] overflow-hidden rounded-3xl text-left ${active ? 'ring-2 ring-mist-50' : 'ring-1 ring-white/10'}`}
+              className={`nav-focus relative h-[7.5rem] overflow-hidden rounded-3xl text-left ${active ? 'ring-2 ring-mist-50' : 'ring-1 ring-white/10'}`}
               style={{ background: PREVIEW[t.key] }}
             >
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
@@ -112,6 +123,8 @@ export function AppearanceSection() {
       </ListGroup>
       <ListGroup title="Bewegung">
         <SliderRow icon={Sparkles} iconBg="bg-[#7c6bb0]" label="Intensität" value={v.bgIntensity} min={0} max={1} step={0.05} format={(x) => `${Math.round(x * 100)}%`} onChange={(x) => setSetting('bgIntensity', x)} />
+        <SliderRow icon={Sparkles} iconBg="bg-[#7c6bb0]" label="Tempo" value={v.bgSpeed} min={0.2} max={3} step={0.05} detents={14} format={(x) => `${x.toFixed(2)}×`} onChange={(x) => setSetting('bgSpeed', x)} />
+        <SliderRow icon={Sparkles} iconBg="bg-[#7c6bb0]" label="Partikeldichte" value={v.bgParticles} min={0.1} max={1.7} step={0.05} format={(x) => `${Math.round(x * 100)}%`} onChange={(x) => setSetting('bgParticles', x)} />
         <ToggleRow icon={Activity} iconBg="bg-[#7c6bb0]" label="Auf Gyrosensor reagieren" sub="Der Hintergrund neigt sich mit dem Gerät" checked={v.bgGyro} onChange={(x) => setSetting('bgGyro', x)} />
       </ListGroup>
     </>

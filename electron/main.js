@@ -145,6 +145,7 @@ function registerIpc() {
 
   ipcMain.handle('window:handoff', wrap(() => {
     win?.hide();
+    daemon.request('input.shell_visible', { visible: false }).catch(() => {});
     return true;
   }));
   ipcMain.handle('window:restore', wrap(() => restoreWindow()));
@@ -165,6 +166,7 @@ function registerIpc() {
 
 function restoreWindow() {
   if (!win) return false;
+  daemon.request('input.shell_visible', { visible: true }).catch(() => {});
   win.show();
   win.focus();
   if (kiosk) win.setFullScreen(true);
