@@ -1,0 +1,19 @@
+[Unit]
+Description=Lumos One hardware daemon (controllers, haptics, Face ID, power, flatpak, updates)
+After=pipewire.service wireplumber.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/lumos/current/daemon
+ExecStart=/usr/bin/python3 -m lumosd
+Restart=always
+RestartSec=1
+Environment=PYTHONUNBUFFERED=1
+Environment=LUMOS_ROOT=/opt/lumos
+# the daemon itself never needs root; privileged ops go through /usr/lib/lumos/lumos-priv (sudoers)
+NoNewPrivileges=false
+Nice=-5
+
+[Install]
+WantedBy=default.target

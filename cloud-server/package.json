@@ -1,0 +1,15 @@
+{
+  "name": "lumos-cloud-server",
+  "version": "1.0.0",
+  "description": "Self-hostable Lumos Cloud REST server (profiles, settings, cloud saves, entitlements, devices). Zero dependencies.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

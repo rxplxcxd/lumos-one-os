@@ -105,7 +105,8 @@ function Discover() {
   const s = useAsync(async () => {
     const [p, popular, trending, added] = await Promise.allSettled([picks(), collection('popular', { perPage: 12 }), collection('trending', { perPage: 12 }), collection('recently-added', { perPage: 12 })]);
     const v = (r) => (r.status === 'fulfilled' ? r.value : null);
-    if (![p, popular, trending, added].some((r) => r.status === 'fulfilled')) throw p.reason;
+    const ok = [p, popular, trending, added].filter((r) => r.status === 'fulfilled' && (Array.isArray(r.value) ? r.value.length : r.value?.items?.length));
+    if (!ok.length) throw [p, popular, trending, added].find((r) => r.status === 'rejected')?.reason || new Error('Keine Daten');
     return { picks: v(p) || [], popular: v(popular)?.items, trending: v(trending)?.items, added: v(added)?.items };
   }, []);
   if (s.error) return <Offline error={s.error} />;

@@ -1,0 +1,15 @@
+# /etc/NetworkManager/system-connections/lumos-usb4.nmconnection  (chmod 600)
+# USB4/Thunderbolt networking between a PC and the Framework mainboard (thunderbolt_net).
+# The PC app "Lumos Sync & Update" reaches the handheld at 10.55.0.1 over a USB4/TB cable.
+[connection]
+id=lumos-usb4
+type=ethernet
+interface-name=thunderbolt0
+autoconnect=true
+
+[ipv4]
+method=shared
+address1=10.55.0.1/24
+
+[ipv6]
+method=disabled

@@ -48,12 +48,33 @@
   "build": {
     "appId": "one.lumos.shell",
     "productName": "Lumos One",
-    "directories": { "output": "release" },
-    "files": ["dist/**", "electron/**", "shared/**", "package.json"],
-    "extraResources": [{ "from": "daemon", "to": "daemon", "filter": ["**/*", "!**/__pycache__/**"] }],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "!electron/**/*.test.js",
+      "shared/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "daemon",
+        "to": "daemon",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**"
+        ]
+      }
+    ],
     "linux": {
       "category": "Game",
-      "target": ["dir", "pacman", "AppImage"],
+      "target": [
+        "dir",
+        "pacman",
+        "AppImage"
+      ],
       "executableName": "lumos-shell"
     }
   }

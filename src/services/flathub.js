@@ -192,6 +192,7 @@ export async function appDetails(id) {
 
 export async function picks() {
   const out = await Promise.allSettled(HANDHELD_PICKS.map((id) => raw(`/appstream/${id}`, { ttl: 6 * 60 * 60e3 })));
+  if (out.every((r) => r.status === 'rejected')) throw out[0].reason;
   return out
     .map((r, i) => (r.status === 'fulfilled' && r.value ? normalizeHit({ ...r.value, app_id: HANDHELD_PICKS[i], developer_name: r.value.developer_name }) : null))
     .filter(Boolean);

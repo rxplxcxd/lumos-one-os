@@ -85,11 +85,11 @@ void main() {
   vec2 q = vec2(fbm(p * 1.1 + vec2(0.0, t)), fbm(p * 1.1 + vec2(5.2, 1.3) - t));
   vec2 w = vec2(fbm(p * 1.4 + q * 1.7 + vec2(1.7, 9.2) + t * 1.5), fbm(p * 1.4 + q * 1.7 + vec2(8.3, 2.8) - t));
   float n = fbm(p * 1.2 + w * 1.6);
-  float band = smoothstep(0.38, 0.78, n) * smoothstep(0.75, -0.35, p.y + 0.1 * sin(p.x * 2.0 + t * 4.0));
+  float band = smoothstep(0.33, 0.72, n) * smoothstep(0.8, -0.4, p.y + 0.1 * sin(p.x * 2.0 + t * 4.0));
   vec3 base = mix(vec3(0.01, 0.012, 0.02), vec3(0.025, 0.035, 0.05), uv.y);
   vec3 c1 = vec3(0.12, 0.34, 0.36);
   vec3 c2 = vec3(0.26, 0.2, 0.44);
-  vec3 col = base + mix(c1, c2, smoothstep(0.2, 0.8, q.x)) * band * 0.6;
+  vec3 col = base + mix(c1, c2, smoothstep(0.2, 0.8, q.x)) * band * 0.85;
   col += vec3(0.7, 0.85, 1.0) * pow(band, 3.0) * 0.08;
   outColor = vec4(finish(col, uv), 1.0);
 }`,

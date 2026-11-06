@@ -1,8 +1,8 @@
 // Lumos Sync & Update (on-device): OTA updates, USB ZIP updates, rollback, cleanup.
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Download, Usb, RotateCcw, Sparkles, ShieldCheck, HardDrive, Trash2 } from 'lucide-react';
-import { Screen, Hint, Button, Progress, ListGroup, ListRow } from '@/components/ui/primitives.jsx';
+import { RefreshCw, Download, Usb, RotateCcw, Sparkles, ShieldCheck, HardDrive, Trash2, Laptop } from 'lucide-react';
+import { Screen, Hint, Button, Progress, ListGroup, ListRow, Sheet } from '@/components/ui/primitives.jsx';
 import { request, on } from '@/services/bridge.js';
 import { useSettings } from '@/store/settings.js';
 import { formatBytes } from '@/services/flathub.js';
@@ -19,18 +19,32 @@ export default function UpdaterScreen() {
   const [prog, setProg] = useState(null);
   const [usb, setUsb] = useState([]);
   const [cleanup, setCleanup] = useState(null);
+  const [pairing, setPairing] = useState(null);
 
   const refresh = () => request('update.status').then(setSt, () => {});
   useEffect(() => {
     refresh();
     request('update.usb_scan').then(setUsb, () => {});
-    return on('update.progress', (p) => {
-      setProg(p);
-      if (p.stage === 'done') {
+    const offs = [
+      on('update.progress', (p) => {
+        setProg(p);
+        if (p.stage === 'done') {
+          haptic('success');
+          refresh();
+        }
+      }),
+      on('update.paired', (d) => {
+        setPairing(null);
         haptic('success');
-        refresh();
-      }
-    });
+        toast({ title: 'PC gekoppelt', body: d?.name, kind: 'success' });
+      }),
+      on('update.uploaded', () => {
+        haptic('notify');
+        toast({ title: 'Updatepaket vom PC empfangen', kind: 'success' });
+        request('update.usb_scan').then(setUsb, () => {});
+      }),
+    ];
+    return () => offs.forEach((f) => f());
   }, []);
 
   const check = async () => {
@@ -95,6 +109,10 @@ export default function UpdaterScreen() {
           ))}
         </ListGroup>
 
+        <ListGroup title="Lumos Sync & Update (PC-App)" footer="Verbinde den Handheld per USB-C (USB-Netzwerk 10.55.0.1) oder WLAN und starte lumos_sync.py auf dem PC.">
+          <ListRow icon={Laptop} iconBg="bg-[#3b82c4]" label="Mit PC koppeln" sub="Zeigt einen 6-stelligen Code für die PC-App" onClick={() => request('update.pair_start').then(setPairing, (e) => toast({ title: e.message, kind: 'error' }))} />
+        </ListGroup>
+
         <ListGroup title="Wartung">
           <ListRow
             icon={Trash2}
@@ -107,6 +125,12 @@ export default function UpdaterScreen() {
           <ListRow icon={HardDrive} iconBg="bg-[#6b7280]" label="Installierte Releases" value={st?.releases?.length ?? '—'} />
         </ListGroup>
       </div>
+      <Sheet open={!!pairing} onClose={() => setPairing(null)} title="Mit PC koppeln">
+        <p className="text-[0.85rem] text-mist-300">Gib diesen Code in „Lumos Sync & Update“ auf deinem PC ein. Er ist 3 Minuten gültig.</p>
+        <div className="my-6 text-center font-mono text-[3rem] font-semibold tracking-[0.4em]">{pairing?.code}</div>
+        <p className="text-center text-[0.75rem] text-mist-500">Port {pairing?.port} · USB-Netzwerk 10.55.0.1 oder WLAN-IP des Geräts</p>
+        <div className="mt-5 flex justify-end"><Button variant="primary" autoFocus onClick={() => setPairing(null)}>Fertig</Button></div>
+      </Sheet>
     </Screen>
   );
 }

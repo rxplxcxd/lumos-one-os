@@ -1,0 +1,17 @@
+# Lumos One udev rules — install to /etc/udev/rules.d/99-lumos.rules
+
+# Virtual gamepad / motion sensors / gyro mouse created by lumosd
+KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput", TAG+="uaccess"
+
+# Lumos Joy halves & chassis MCU (ESP32-S3 native USB-CDC through the pogo pins)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", MODE="0660", GROUP="uucp", TAG+="uaccess", SYMLINK+="lumos-joy-%k"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="303a", MODE="0660", GROUP="uucp", TAG+="uaccess"
+
+# Hide the raw Lumos Joy HID/CDC from Steam/SDL so games only see the merged virtual pad
+SUBSYSTEM=="input", ATTRS{name}=="Lumos One Gamepad", ENV{ID_INPUT_JOYSTICK}="1", TAG+="uaccess"
+
+# Backlight writable for the video group (brightness slider without sudo)
+ACTION=="add", SUBSYSTEM=="backlight", RUN+="/bin/chgrp video /sys/class/backlight/%k/brightness", RUN+="/bin/chmod g+w /sys/class/backlight/%k/brightness"
+
+# IR camera for Face ID
+SUBSYSTEM=="video4linux", GROUP="video", MODE="0660"

@@ -26,11 +26,13 @@ export function dispatch(action) {
       activate();
       break;
     case 'b':
+      // like the Switch: A starts editing a field (on-screen keyboard), B closes the keyboard,
+      // a second B leaves the screen — focus never gets trapped inside a text field
       if (document.querySelector('[data-osk]')) window.dispatchEvent(new Event('lumos:osk-close'));
-      else if (document.activeElement?.matches('input, textarea') && document.activeElement.dataset.navTrap !== 'off') {
-        document.activeElement.blur();
-        ensureFocus();
-      } else back();
+      else {
+        if (document.activeElement?.matches('input, textarea')) document.activeElement.blur();
+        if (!back()) ensureFocus();
+      }
       break;
     case 'home':
       goHome();

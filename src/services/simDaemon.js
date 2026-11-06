@@ -227,6 +227,7 @@ export function createSimDaemon(emit) {
     'update.cleanup': async () => (await sleep(700), { freed_bytes: 1.37e9, removed: ['releases/0.9.4', 'cache/flatpak-unused', 'tmp/update-*'] }),
     'update.rollback': () => ({ ok: true }),
     'update.usb_scan': () => [],
+    'update.pair_start': () => ({ code: String(Math.floor(Math.random() * 1e6)).padStart(6, '0'), expires_in: 180, port: 7421, simulated: true }),
     'media.status': () => ({ ...state.media }),
     'media.control': ({ action }) => {
       if (action === 'toggle') state.media.playing = !state.media.playing;

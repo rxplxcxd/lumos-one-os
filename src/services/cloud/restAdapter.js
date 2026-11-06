@@ -90,11 +90,17 @@ export class RestAdapter {
   listSaves() {
     return this.#fetch('/v1/saves');
   }
-  uploadSave({ id, title, sha256, bytes, baseVersion }) {
+  uploadSave({ id, title, sha256, bytes, baseVersion, device }) {
     return this.#fetch(`/v1/saves/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: bytes,
-      headers: { 'content-type': 'application/octet-stream', 'x-lumos-title': encodeURIComponent(title), 'x-lumos-sha256': sha256, ...(baseVersion ? { 'if-match': String(baseVersion) } : {}) },
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-lumos-title': encodeURIComponent(title),
+        'x-lumos-sha256': sha256,
+        ...(device ? { 'x-lumos-device': device } : {}),
+        ...(baseVersion ? { 'if-match': String(baseVersion) } : {}),
+      },
     });
   }
   async downloadSave(id) {

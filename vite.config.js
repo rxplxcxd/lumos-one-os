@@ -26,5 +26,5 @@ export default defineConfig({
       },
     },
   },
-  test: { environment: 'jsdom', include: ['src/**/*.test.{js,jsx}'] },
+  test: { environment: 'jsdom', include: ['src/**/*.test.{js,jsx}', 'electron/**/*.test.js'] },
 });
