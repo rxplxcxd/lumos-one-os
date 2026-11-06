@@ -1,0 +1,4 @@
+# /etc/sudoers.d/lumos — the kiosk user may run ONLY the validated helper as root (no shell, no args parsing by sudo).
+# Install with: install -m 0440 system/sudoers.d/lumos /etc/sudoers.d/lumos && visudo -c
+Defaults:lumos !requiretty
+lumos ALL=(root) NOPASSWD: /usr/lib/lumos/lumos-priv

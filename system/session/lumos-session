@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Lumos One kiosk session: Gamescope (embedded DRM mode) running the Lumos shell.
+# Started by greetd autologin (see system/greetd/config.toml) or as a Wayland session entry.
+# Settings that need a compositor restart are read from ~/.config/lumos/session.env, which lumosd
+# rewrites when display settings or the dock state change.
+set -euo pipefail
+
+ROOT="${LUMOS_ROOT:-/opt/lumos/current}"
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/lumos/session.env"
+LUMOS_REFRESH=165
+LUMOS_HDR=0
+LUMOS_MODE=handheld
+LUMOS_TV_W=0
+LUMOS_TV_H=0
+LUMOS_UPSCALER=fsr
+LUMOS_SHARPNESS=2
+# shellcheck disable=SC1090
+[[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
+
+# internal panel: 8" OLED 1920×1200 @ 165 Hz
+OUT_W=1920
+OUT_H=1200
+ARGS=(--prefer-output "DP-1,DP-2,DP-3,HDMI-A-1,eDP-1" -r "$LUMOS_REFRESH" --adaptive-sync --immediate-flips --force-grab-cursor)
+
+if [[ "$LUMOS_MODE" == "tv" ]]; then
+  # docked: let gamescope use the TV's preferred mode, render the shell at the chosen TV resolution
+  ARGS=(--prefer-output "DP-1,DP-2,DP-3,HDMI-A-1,eDP-1" --adaptive-sync)
+  if (( LUMOS_TV_W > 0 )); then OUT_W=$LUMOS_TV_W; OUT_H=$LUMOS_TV_H; else OUT_W=3840; OUT_H=2160; fi
+fi
+case "$LUMOS_UPSCALER" in
+  fsr) ARGS+=(--filter fsr --sharpness "$LUMOS_SHARPNESS") ;;
+  nis) ARGS+=(--filter nis --sharpness "$LUMOS_SHARPNESS") ;;
+  pixel) ARGS+=(--filter pixel) ;;
+  *) ARGS+=(--filter linear) ;;
+esac
+[[ "$LUMOS_HDR" == "1" ]] && ARGS+=(--hdr-enabled)
+
+export XDG_CURRENT_DESKTOP=gamescope
+export LUMOS_KIOSK=1
+export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
+export ELECTRON_OZONE_PLATFORM_HINT=x11
+
+# make sure the hardware daemon is up before the shell connects
+systemctl --user start lumosd.service || true
+
+exec gamescope -W "$OUT_W" -H "$OUT_H" -w "$OUT_W" -h "$OUT_H" "${ARGS[@]}" -- \
+  "$ROOT/shell/lumos-shell" --enable-features=VaapiVideoDecodeLinuxGL

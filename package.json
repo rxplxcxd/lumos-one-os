@@ -1,0 +1,81 @@
+{
+  "name": "lumos-one-os",
+  "productName": "Lumos One",
+  "version": "1.0.0",
+  "description": "Lumos One — handheld kiosk OS shell (Electron + React) for the Lumos One 8\" OLED handheld",
+  "type": "module",
+  "main": "electron/main.js",
+  "license": "MIT",
+  "author": "Lumos One Project",
+  "scripts": {
+    "dev": "vite",
+    "dev:electron": "concurrently -k \"vite --strictPort\" \"wait-on tcp:5173 && cross-env LUMOS_DEV_URL=http://localhost:5173 electron .\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "electron .",
+    "test": "vitest run",
+    "cloud": "node cloud-server/server.js",
+    "dist": "vite build && electron-builder --linux dir pacman AppImage",
+    "zip": "bash scripts/build-zip.sh"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.1.0",
+    "@react-three/drei": "9.114.0",
+    "@react-three/fiber": "8.17.10",
+    "@supabase/supabase-js": "2.45.4",
+    "framer-motion": "11.11.9",
+    "lucide-react": "0.453.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "three": "0.169.0",
+    "ws": "8.18.0",
+    "zustand": "4.5.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.3",
+    "autoprefixer": "10.4.20",
+    "concurrently": "9.0.1",
+    "cross-env": "7.0.3",
+    "electron": "33.0.2",
+    "electron-builder": "25.1.8",
+    "jsdom": "25.0.1",
+    "postcss": "8.4.47",
+    "tailwindcss": "3.4.14",
+    "vite": "5.4.10",
+    "vitest": "2.1.3",
+    "wait-on": "8.0.1"
+  },
+  "build": {
+    "appId": "one.lumos.shell",
+    "productName": "Lumos One",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "!electron/**/*.test.js",
+      "shared/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "daemon",
+        "to": "daemon",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**"
+        ]
+      }
+    ],
+    "linux": {
+      "category": "Game",
+      "target": [
+        "dir",
+        "pacman",
+        "AppImage"
+      ],
+      "executableName": "lumos-shell"
+    }
+  }
+}

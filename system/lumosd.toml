@@ -1,0 +1,22 @@
+# /etc/lumos/lumosd.toml — lumosd configuration (all keys optional)
+host = "127.0.0.1"
+port = 7420
+
+# Face ID: override the IR camera if Howdy's device_path is not set
+# ir_device = "/dev/v4l/by-id/usb-Framework_IR_Camera-video-index0"
+
+# controllers
+serial_baud = 1000000
+serial_match = ["Lumos", "303a:"]
+
+# display (Gamescope's Xwayland display for runtime atoms)
+gamescope_display = ":0"
+internal_output = "eDP-1"
+
+# updates: GitHub Releases API or a JSON feed [{version, channel, url, size, notes}]
+update_url = "https://api.github.com/repos/rxplxcxd/lumos-one-os/releases"
+update_root = "/opt/lumos"
+update_pubkey = "/usr/share/lumos/update-signing.pub"
+
+# extra folders to offer for Lumos Cloud save sync
+extra_save_paths = []

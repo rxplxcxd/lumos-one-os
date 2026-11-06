@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Lumos One
+Comment=Lumos One handheld kiosk (Gamescope)
+Exec=/usr/bin/lumos-session
+Type=Application
+DesktopNames=gamescope

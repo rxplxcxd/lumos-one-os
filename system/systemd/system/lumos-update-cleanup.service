@@ -1,0 +1,8 @@
+[Unit]
+Description=Lumos One — remove stale releases and update caches
+ConditionPathExists=/opt/lumos/current
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lumos/current/updater
+ExecStart=/usr/bin/python3 -m lumos_update --root /opt/lumos cleanup --keep 2

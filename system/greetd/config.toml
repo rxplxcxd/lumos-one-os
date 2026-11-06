@@ -1,0 +1,11 @@
+# /etc/greetd/config.toml — boot straight into the Lumos One kiosk session
+[terminal]
+vt = 1
+
+[default_session]
+command = "agreety --cmd /usr/bin/lumos-session"
+user = "greeter"
+
+[initial_session]
+command = "/usr/bin/lumos-session"
+user = "lumos"

@@ -1,0 +1,8 @@
+websockets>=13.1,<16
+pyserial>=3.5
+# optional hardware backends (install the ones you have hardware for):
+evdev>=1.7            # uinput virtual gamepad / motion sensors / external pads
+bleak>=0.22           # Bluetooth LE Joy-Cons
+opencv-python-headless>=4.9   # IR preview & face pre-detection for Face ID
+cryptography>=42      # Ed25519 update signature verification
+sdnotify>=0.3         # systemd Type=notify readiness
