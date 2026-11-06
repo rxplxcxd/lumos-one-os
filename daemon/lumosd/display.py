@@ -2,10 +2,18 @@
 env consumed by system/lumos-session for settings that need a compositor restart."""
 from __future__ import annotations
 
+import asyncio
 import glob
 
 from .module import Module
 from .util import priv, read_int, run, which
+
+
+def read_float(path):
+    try:
+        return float(open(path).read().strip())
+    except (OSError, ValueError):
+        return None
 
 FILTERS = {"linear": 0, "pixel": 1, "fsr": 2, "nis": 3}  # gamescope GamescopeUpscaleFilter order: LINEAR, NEAREST, FSR, NIS
 TV_RES = {"1080p": (1920, 1080), "1440p": (2560, 1440), "4k": (3840, 2160)}
@@ -20,6 +28,44 @@ class DisplayModule(Module):
 
     def methods(self):
         return {"display.get": self.get, "display.set": self.set}
+
+    async def start(self):
+        if not self.cfg.simulate:
+            self.spawn(self._als_loop())
+
+    @staticmethod
+    def read_lux():
+        for d in glob.glob("/sys/bus/iio/devices/iio:device*"):
+            for name in ("in_illuminance_input", "in_illuminance_raw"):
+                v = read_float(f"{d}/{name}")
+                if v is not None:
+                    scale = read_float(f"{d}/in_illuminance_scale") or 1.0
+                    return v * (scale if name.endswith("raw") else 1.0)
+        return None
+
+    @staticmethod
+    def lux_to_brightness(lux: float) -> int:
+        # perceptual (log) mapping: 0 lx → 8 %, 10 lx → 25 %, 100 lx → 50 %, 1000 lx → 80 %, 10 000 lx → 100 %
+        import math
+
+        return int(max(8, min(100, 8 + 23 * math.log10(1 + max(0.0, lux)))))
+
+    async def _als_loop(self):
+        smoothed = None
+        while True:
+            await asyncio.sleep(2)
+            if not self.state.get("auto_brightness"):
+                smoothed = None
+                continue
+            lux = self.read_lux()
+            if lux is None:
+                continue
+            target = self.lux_to_brightness(lux)
+            smoothed = target if smoothed is None else smoothed + (target - smoothed) * 0.25  # avoid flicker
+            if abs(smoothed - self.state["brightness"]) >= 2:
+                self.state["brightness"] = int(smoothed)
+                await self._brightness(int(smoothed))
+                self.emit("display.brightness", {"brightness": int(smoothed), "lux": round(lux, 1)})
 
     async def get(self, _p=None):
         return {**self.state, **self.ctx["dock"].status()}

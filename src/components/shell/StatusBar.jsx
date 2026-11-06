@@ -49,7 +49,7 @@ export default function StatusBar() {
   const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', ...(showSec ? { second: '2-digit' } : {}), hour12: !h24 });
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex h-[3.5rem] items-center gap-4 px-10 text-[0.85rem] text-mist-100">
+    <div data-static="" className="pointer-events-none fixed inset-x-0 top-0 z-40 flex h-[3.5rem] items-center gap-4 px-10 text-[0.85rem] text-mist-100">
       <Avatar size="1.9rem" />
       <span className="font-semibold tabular-nums tracking-tight">{time}</span>
       {daemon.mode === 'simulator' && (

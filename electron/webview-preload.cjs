@@ -43,6 +43,19 @@ ipcRenderer.on('lumos:autofill', (_e, cred) => {
   setNativeValue(f.pw, cred.password);
 });
 
+// offer to save credentials after a login form is submitted
+document.addEventListener(
+  'submit',
+  (e) => {
+    const form = e.target;
+    const pw = form?.querySelector?.('input[type="password"]');
+    if (!pw || !pw.value) return;
+    const user = Array.from(form.querySelectorAll('input')).find((i) => ['text', 'email', 'tel'].includes((i.type || 'text').toLowerCase()) && i.value);
+    ipcRenderer.sendToHost('lumos:login-submit', { origin: location.hostname, username: user?.value || '', password: pw.value });
+  },
+  true,
+);
+
 window.addEventListener('DOMContentLoaded', () => {
   scan();
   new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true });

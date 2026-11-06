@@ -1,7 +1,7 @@
 {
   "name": "lumos-one-os",
   "productName": "Lumos One",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Lumos One — handheld kiosk OS shell (Electron + React) for the Lumos One 8\" OLED handheld",
   "type": "module",
   "main": "electron/main.js",

@@ -9,9 +9,11 @@ export default class ErrorBoundary extends Component {
   }
   componentDidCatch(error, info) {
     console.error('[lumos] screen crashed', error, info.componentStack);
+    this.props.onError?.(error);
   }
   render() {
     if (!this.state.error) return this.props.children;
+    if ('fallback' in this.props) return this.props.fallback; // e.g. inside a WebGL scene
     return (
       <div data-nav-scope="0" className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center">
         <AlertTriangle className="h-10 w-10 text-warn" />

@@ -24,6 +24,8 @@ STEAM_TOOLS = re.compile(r"^(Proton|Steam Linux Runtime|Steamworks Common|SteamV
 STEAM_ROOTS = ["~/.local/share/Steam", "~/.steam/steam", "~/.var/app/com.valvesoftware.Steam/data/Steam"]
 
 
+BUILTIN_ORBIT = {"id": "builtin:orbit", "kind": "builtin", "name": "Lumos Orbit"}
+
 class LibraryModule(Module):
     name = "library"
 
@@ -99,7 +101,7 @@ class LibraryModule(Module):
         return out
 
     # ---------------------------------------------------------------- list
-    async def list(self, _p=None):
+    async def list(self, _p=None):  # noqa: A003
         if self.cfg.simulate:
             return self.ctx["sim"].library
         items = self.steam_games()
@@ -113,6 +115,9 @@ class LibraryModule(Module):
             s = stats.get(sl["id"], {})
             if os.path.exists(sl["path"]):
                 items.append({**sl, "lastPlayed": s.get("last", 0), "playtime": s.get("minutes", 0)})
+        # built-in titles run inside the shell (renderer); playtime is tracked by the UI
+        s = stats.get(BUILTIN_ORBIT["id"], {})
+        items.append({**BUILTIN_ORBIT, "lastPlayed": s.get("last", 0), "playtime": s.get("minutes", 0)})
         return items
 
     # ---------------------------------------------------------------- launch
@@ -134,13 +139,17 @@ class LibraryModule(Module):
             fid = item_id.split(":", 1)[1]
             if not re.match(r"^[\w.-]+$", fid):
                 raise RpcError("Ungültige App", "EINVAL")
-            cmd = ["flatpak", "run", fid]
+            env_args = [f"--env={k}={v}" for k, v in self.ctx["apps"].game_env().items()]
+            cmd = ["flatpak", "run", *env_args, fid]
         else:
             sl = next((s for s in self.state.get("sideload", []) if s["id"] == item_id), None)
             if not sl:
                 raise RpcError("Titel nicht gefunden", "ENOENT")
-            cmd = [sl["path"], *sl.get("args", [])]
-        proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
+            cmd = [*self.ctx["apps"].launch_wrapper(item_id), sl["path"], *sl.get("args", [])]
+        apps = self.ctx["apps"]
+        await apps.apply_profile(item_id)
+        env = {**os.environ, **apps.game_env()}
+        proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL, start_new_session=True, env=env)
         self.running[item_id] = proc
         self.emit("library.launched", {"id": item_id, "pid": proc.pid})
         self.spawn(self._track(item_id, proc, tracked=not item_id.startswith("steam")))
@@ -157,6 +166,8 @@ class LibraryModule(Module):
         t0 = time.time()
         await proc.wait()
         self.running.pop(item_id, None)
+        if tracked:
+            await self.ctx["apps"].restore_profile()
         if tracked:
             s = self.state.setdefault("stats", {}).setdefault(item_id, {"minutes": 0})
             s["last"] = int(t0)

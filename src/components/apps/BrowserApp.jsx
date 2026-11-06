@@ -2,7 +2,8 @@
 // keychain. In a plain browser preview it falls back to an <iframe>.
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, RotateCw, Globe, KeyRound, Home } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RotateCw, Globe, KeyRound, Home, PictureInPicture2 } from 'lucide-react';
+import { openPip } from '@/components/shell/PipWindow.jsx';
 import { Screen, TextField, Button } from '@/components/ui/primitives.jsx';
 import { keychain } from '@/services/keychain.js';
 import { toast } from '@/store/ui.js';
@@ -39,8 +40,36 @@ export default function BrowserApp({ url: initial }) {
       setAddr(e.url);
       setLogin(null);
     };
-    const onMsg = (e) => {
+    const onMsg = async (e) => {
       if (e.channel === 'lumos:login-form' || e.channel === 'lumos:login-focus') setLogin(e.args[0]);
+      if (e.channel === 'lumos:login-submit') {
+        const { origin, username, password } = e.args[0] || {};
+        if (!password) return;
+        // like iOS: offer to store new credentials in the keychain
+        toast({
+          title: 'Passwort sichern?',
+          body: `${username || 'Konto'} · ${origin}`,
+          kind: 'info',
+          duration: 12000,
+          actions: [
+            {
+              label: 'Sichern',
+              primary: true,
+              run: async () => {
+                try {
+                  await keychain().unlock({ reason: 'Passwort sichern' });
+                  await keychain().upsert({ title: origin, origin, username, password });
+                  haptic('success');
+                  toast({ title: 'Im Schlüsselbund gespeichert', kind: 'success' });
+                } catch (err) {
+                  toast({ title: err.message, kind: 'error' });
+                }
+              },
+            },
+            { label: 'Nicht jetzt', run: () => {} },
+          ],
+        });
+      }
     };
     v.addEventListener('did-navigate', onNav);
     v.addEventListener('did-navigate-in-page', onNav);
@@ -82,6 +111,7 @@ export default function BrowserApp({ url: initial }) {
           <Button size="sm" variant="subtle" icon={ArrowRight} onClick={() => wv.current?.goForward?.()} />
           <Button size="sm" variant="subtle" icon={RotateCw} onClick={() => wv.current?.reload?.()} />
           <Button size="sm" variant="subtle" icon={Home} onClick={() => go(START)} />
+          <Button size="sm" variant="subtle" icon={PictureInPicture2} onClick={() => openPip(addr)}>Bild-in-Bild</Button>
           <div className="w-[26rem]">
             <TextField value={addr} onChange={setAddr} onEnter={() => go(addr)} className="h-9 rounded-full py-1.5 text-[0.82rem]" />
           </div>

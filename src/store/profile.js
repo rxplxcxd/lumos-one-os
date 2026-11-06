@@ -23,7 +23,7 @@ export const DEFAULT_AVATAR = {
 
 const initial = loadJSON('lumos.profiles', null) || {
   activeId: 'p1',
-  profiles: [{ id: 'p1', name: 'Spieler 1', avatar: DEFAULT_AVATAR, image: null, imageKind: 'avatar', createdAt: Date.now() }],
+  profiles: [{ id: 'p1', name: 'Spieler 1', role: 'owner', lock: 'faceid', avatar: DEFAULT_AVATAR, image: null, imageKind: 'avatar', createdAt: Date.now() }],
 };
 
 export const useProfiles = create(() => initial);
@@ -44,9 +44,10 @@ export function updateProfile(id, patch) {
   persist(id === useProfiles.getState().activeId);
 }
 
-export function addProfile(name) {
+export function addProfile(name, role = 'standard') {
   const id = `p${Date.now().toString(36)}`;
-  useProfiles.setState((s) => ({ profiles: [...s.profiles, { id, name, avatar: { ...DEFAULT_AVATAR, skin: '#c98e6b', hair: 'buzz' }, image: null, imageKind: 'avatar', createdAt: Date.now() }] }));
+  const controls = role === 'child' ? { ageLimit: 12, dailyMinutes: 90, blocked: [], approved: [], allowOnlyApproved: false, storeNeedsPin: true } : undefined;
+  useProfiles.setState((s) => ({ profiles: [...s.profiles, { id, name, role, lock: 'none', controls, avatar: { ...DEFAULT_AVATAR, skin: '#c98e6b', hair: 'buzz' }, image: null, imageKind: 'avatar', createdAt: Date.now() }] }));
   persist(false);
   return id;
 }

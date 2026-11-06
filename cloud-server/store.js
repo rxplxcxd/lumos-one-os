@@ -10,8 +10,10 @@ export class Store {
     try {
       this.db = JSON.parse(fs.readFileSync(this.file, 'utf8'));
     } catch {
-      this.db = { users: {}, emails: {}, refresh: {}, docs: {}, saves: {}, entitlements: {}, devices: {} };
+      this.db = {};
     }
+    // v1.1 collections (also migrates older databases)
+    for (const k of ['users', 'emails', 'refresh', 'docs', 'saves', 'entitlements', 'devices', 'codes', 'friends', 'messages', 'media', 'manifests']) this.db[k] ||= {};
     this.pending = null;
   }
 
@@ -35,6 +37,12 @@ export class Store {
       });
     });
     return this.pending;
+  }
+
+  mediaPath(id) {
+    const d = path.join(this.dir, 'media');
+    fs.mkdirSync(d, { recursive: true });
+    return path.join(d, `${id.replace(/[^\w.-]/g, '_')}.bin`);
   }
 
   blobPath(userId, saveId) {

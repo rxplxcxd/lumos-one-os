@@ -88,6 +88,7 @@ class KeypadModule(Module):
         self.shell_visible = bool(p.get("visible", True))
         if self.shell_visible:  # release everything when the shell takes over again
             self.state.down.clear()
+            await self.ctx["apps"].restore_profile()  # Steam titles are not tracked: restore when the shell returns
         return {"ok": True}
 
     async def configure(self, p):

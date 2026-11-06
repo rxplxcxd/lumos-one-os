@@ -2,7 +2,7 @@
 // Runs fullscreen inside a Gamescope kiosk session. Owns: daemon bridge, keychain,
 // Flathub proxy (CORS-free, cached), local file protocol for custom backgrounds,
 // and window hand-off when games are launched.
-import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session, shell, powerSaveBlocker } from 'electron';
+import { app, BrowserWindow, desktopCapturer, ipcMain, net, protocol, safeStorage, session, shell, powerSaveBlocker, screen } from 'electron';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -149,6 +149,31 @@ function registerIpc() {
     return true;
   }));
   ipcMain.handle('window:restore', wrap(() => restoreWindow()));
+  // Picture-in-Picture overlay: own always-on-top window, flagged for Gamescope so it floats above games
+  let pip = null;
+  ipcMain.handle('pip:open', wrap((url) => {
+    if (!/^https:\/\//.test(url)) throw new Error('only https');
+    const area = screen.getPrimaryDisplay().workAreaSize;
+    if (!pip || pip.isDestroyed()) {
+      pip = new BrowserWindow({ width: 520, height: 292, x: area.width - 560, y: area.height - 332, frame: false, alwaysOnTop: true, skipTaskbar: true, focusable: false, resizable: true, backgroundColor: '#000000', webPreferences: { partition: 'persist:lumos-web', sandbox: true, contextIsolation: true } });
+      pip.setAlwaysOnTop(true, 'screen-saver');
+      pip.setOpacity(0.95);
+      pip.once('ready-to-show', () => pip.showInactive());
+      try {
+        const xid = pip.getNativeWindowHandle().readUInt32LE(0);
+        spawn('xprop', ['-id', String(xid), '-f', 'GAMESCOPE_EXTERNAL_OVERLAY', '32c', '-set', 'GAMESCOPE_EXTERNAL_OVERLAY', '1'], { stdio: 'ignore' }).on('error', () => {});
+      } catch {
+        /* not X11 */
+      }
+      pip.on('closed', () => (pip = null));
+    }
+    pip.loadURL(url);
+    return true;
+  }));
+  ipcMain.handle('pip:close', wrap(() => (pip?.close(), true)));
+  ipcMain.handle('pip:opacity', wrap((o) => (pip?.setOpacity(Math.max(0.3, Math.min(1, Number(o)))), true)));
+  ipcMain.handle('pip:scroll', wrap((dx, dy) => pip?.webContents.executeJavaScript(`scrollBy(${Number(dx) || 0}, ${Number(dy) || 0})`)));
+
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     electron: process.versions.electron,
@@ -213,7 +238,9 @@ app.whenReady().then(() => {
     if (!isAllowedPath(p)) return new Response('forbidden', { status: 403 });
     return net.fetch(pathToFileURL(p).toString());
   });
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(['media', 'fullscreen', 'clipboard-sanitized-write'].includes(permission)));
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(['media', 'fullscreen', 'clipboard-sanitized-write', 'display-capture'].includes(permission)));
+  // 30-second clips of the whole screen without a picker dialog (kiosk device)
+  session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => desktopCapturer.getSources({ types: ['screen'] }).then((s) => cb(s[0] ? { video: s[0] } : {}), () => cb({})));
 
   registerIpc();
   maybeSpawnDaemon();

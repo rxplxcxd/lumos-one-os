@@ -1,5 +1,6 @@
 // Ambient layer: screensaver after inactivity (drifting clock / ambient / photo), charging
-// animation when the charger is connected, night-shift tint and auto-sleep.
+// animation when the charger is connected, night-shift tint (manual / sunset→sunrise /
+// schedule), OLED care (pixel shift, dimming static chrome) and auto-sleep.
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BatteryCharging } from 'lucide-react';
@@ -10,6 +11,11 @@ import { useNow } from '@/components/ui/primitives.jsx';
 import AnimatedNumber from '@/components/ui/AnimatedNumber.jsx';
 import { haptic } from '@/services/haptics.js';
 import { notify, request } from '@/services/bridge.js';
+import { nightShiftActive } from '@/lib/sun.js';
+
+// ±1–2 px orbit applied to the main UI layer every 3 min (OLED burn-in protection)
+export const pixelOffset = { x: 0, y: 0, listeners: new Set() };
+const ORBIT = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
 
 function Screensaver({ style, onWake }) {
   const now = useNow(1000);
@@ -64,11 +70,37 @@ export default function Ambient() {
   const lastInput = useRef(Date.now());
   const prevCharging = useRef(battery.charging);
   const dimmed = useRef(false);
+  const [night, setNight] = useState(() => nightShiftActive(useSettings.getState().values));
+
+  // night shift: re-evaluate every minute (auto mode follows local sunset/sunrise)
+  useEffect(() => {
+    setNight(nightShiftActive(v));
+    const t = setInterval(() => setNight(nightShiftActive(useSettings.getState().values)), 60000);
+    return () => clearInterval(t);
+  }, [v.nightShiftMode, v.nightShiftFrom, v.nightShiftTo, v.nightShift, v.weatherLocation]);
+
+  // pixel shift + dim static chrome after 2 min without input
+  useEffect(() => {
+    let step = 0;
+    const shift = setInterval(() => {
+      const on = useSettings.getState().values.pixelShift;
+      step = on ? (step + 1) % ORBIT.length : 0;
+      [pixelOffset.x, pixelOffset.y] = ORBIT[step];
+      pixelOffset.listeners.forEach((f) => f(pixelOffset));
+    }, 180000);
+    const dim = setInterval(() => {
+      const idle = Date.now() - lastInput.current > 120000;
+      const want = idle && useSettings.getState().values.dimStatic && !useSystem.getState().running;
+      document.documentElement.classList.toggle('dim-static', !!want);
+    }, 5000);
+    return () => (clearInterval(shift), clearInterval(dim));
+  }, []);
 
   // inactivity tracking
   useEffect(() => {
     const bump = () => {
       lastInput.current = Date.now();
+      document.documentElement.classList.remove('dim-static');
       if (useUI.getState().screensaver) wake();
     };
     const evs = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'lumos:action'];
@@ -121,7 +153,9 @@ export default function Ambient() {
 
   return (
     <>
-      {v.nightShift > 0 && <div className="pointer-events-none fixed inset-0 z-[99] mix-blend-multiply" style={{ background: `rgba(255, 170, 90, ${v.nightShift * 0.35})` }} />}
+      <AnimatePresence>
+        {night && <motion.div key="ns" className="pointer-events-none fixed inset-0 z-[99] mix-blend-multiply" style={{ background: `rgba(255, 170, 90, ${(v.nightShift || 0.5) * 0.35})` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 3 }} />}
+      </AnimatePresence>
       <AnimatePresence>{charging && <Charging key="chg" percent={battery.percent} />}</AnimatePresence>
       <AnimatePresence>{saver && <Screensaver key="ss" style={v.screensaverStyle} onWake={wake} />}</AnimatePresence>
     </>

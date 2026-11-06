@@ -25,11 +25,17 @@ export const useCloud = create(() => ({
   entitlements: [],
   devices: [],
   config: loadJSON(LS_CONFIG, null),
+  // v1.1
+  me: null,
+  friends: [],
+  unread: 0,
+  conflicts: {}, // save id → { local, remote }
 }));
 
 const set = (p) => useCloud.setState(p);
 let adapter = null;
 let cache = loadJSON(LS_CACHE, { settings: { values: {}, stamps: {}, version: 0 }, profile: { data: null, version: 0, dirtyAt: 0 }, saveVersions: {} });
+cache.saveBase ||= {}; // save id → { version, sha } of the last successful sync (conflict detection)
 let outbox = loadJSON(LS_OUTBOX, []);
 let sources = { settings: null, profile: null };
 let timer = null;
@@ -95,6 +101,7 @@ export function initCloud() {
   timer = setInterval(() => syncNow().catch(() => {}), 60e3);
   window.addEventListener('online', () => syncNow().catch(() => {}));
   setTimeout(() => syncNow().catch(() => {}), 1500);
+  setTimeout(() => useCloud.getState().user && startSocialPolling(), 2500);
 }
 
 export async function signIn(creds) {
@@ -103,6 +110,7 @@ export async function signIn(creds) {
   await adapter.signIn(creds);
   await adapter.registerDevice({ deviceId: deviceId(), name: 'Lumos One', model: 'LUMOS-ONE-8' }).catch(() => {});
   await syncNow();
+  startSocialPolling();
 }
 
 export async function signUp(creds) {
@@ -111,11 +119,13 @@ export async function signUp(creds) {
   await adapter.signUp(creds);
   await adapter.registerDevice({ deviceId: deviceId(), name: 'Lumos One', model: 'LUMOS-ONE-8' }).catch(() => {});
   await syncNow();
+  startSocialPolling();
 }
 
 export async function signOut() {
   await adapter?.signOut();
-  set({ user: null, status: 'signed-out', saves: [], entitlements: [], devices: [] });
+  clearInterval(socialTimer);
+  set({ user: null, status: 'signed-out', saves: [], entitlements: [], devices: [], me: null, friends: [], unread: 0 });
 }
 
 function enqueue(op) {
@@ -240,29 +250,144 @@ async function sha256Hex(bytes) {
 }
 
 /** Packs a local save set via lumosd and uploads it. */
-export async function uploadSave(save) {
-  if (!window.lumos?.cache) throw new Error('Cloud-Saves benötigen die Lumos-Shell (Electron)');
+async function packLocal(save) {
   const packed = await daemon('saves.pack', { id: save.id }, 120000);
-  const bytes = new Uint8Array(await window.lumos.cache.read(packed.archive));
+  let bytes;
+  if (window.lumos?.cache && packed.archive) bytes = new Uint8Array(await window.lumos.cache.read(packed.archive));
+  else if (packed.simulated) bytes = new TextEncoder().encode(JSON.stringify({ lumosSimulatedSave: save.id, title: save.title, hash: save.hash, t: save.mtime }));
+  else throw new Error('Cloud-Saves benötigen die Lumos-Shell (Electron)');
   const sha = await sha256Hex(bytes);
-  if (packed.sha256 && packed.sha256 !== sha) throw new Error('Prüfsumme des Archivs stimmt nicht');
-  const meta = await adapter.uploadSave({ id: save.id, title: save.title, sha256: sha, bytes, baseVersion: cache.saveVersions[save.id], device: deviceId() });
+  if (packed.sha256 && !packed.simulated && packed.sha256 !== sha) throw new Error('Prüfsumme des Archivs stimmt nicht');
+  return { bytes, sha };
+}
+
+async function localManifest(id) {
+  try {
+    return await daemon('saves.manifest', { id }, 60000);
+  } catch {
+    return [];
+  }
+}
+
+/** Packs a local save set via lumosd and uploads it (optionally forcing over a newer cloud version). */
+export async function uploadSave(save, { force = false } = {}) {
+  initCloud();
+  const { bytes, sha } = await packLocal(save);
+  const remote = useCloud.getState().saves.find((r) => r.id === save.id);
+  const manifest = await localManifest(save.id);
+  const baseVersion = force ? remote?.version : cache.saveBase[save.id]?.version ?? cache.saveVersions[save.id];
+  const meta = await adapter.uploadSave({ id: save.id, title: save.title, sha256: sha, bytes, baseVersion, device: deviceId(), manifest });
+  await adapter.putManifest?.(save.id, manifest).catch(() => {});
   cache.saveVersions[save.id] = meta.version;
+  cache.saveBase[save.id] = { version: meta.version, sha: save.hash || sha };
+  clearConflict(save.id);
   persist();
   await pull();
   return meta;
 }
 
 export async function restoreSave(id) {
-  if (!window.lumos?.cache) throw new Error('Cloud-Saves benötigen die Lumos-Shell (Electron)');
+  initCloud();
   const bytes = await adapter.downloadSave(id);
   const remote = useCloud.getState().saves.find((s) => s.id === id);
   if (remote?.sha256 && (await sha256Hex(bytes)) !== remote.sha256) throw new Error('Download beschädigt (SHA-256)');
-  const file = await window.lumos.cache.write(`${id.replace(/[^\w.-]/g, '_')}.tar.gz`, bytes);
-  await daemon('saves.restore', { id, archive: file }, 120000);
+  if (window.lumos?.cache) {
+    const file = await window.lumos.cache.write(`${id.replace(/[^\w.-]/g, '_')}.tar.gz`, bytes);
+    await daemon('saves.restore', { id, archive: file }, 120000);
+  } else await daemon('saves.restore', { id, archive: null }, 120000);
   cache.saveVersions[id] = remote?.version;
+  const local = (await daemon('saves.list').catch(() => [])).find((s) => s.id === id);
+  cache.saveBase[id] = { version: remote?.version, sha: local?.hash || remote?.sha256 };
+  clearConflict(id);
   persist();
 }
+
+function clearConflict(id) {
+  const c = { ...useCloud.getState().conflicts };
+  delete c[id];
+  set({ conflicts: c });
+}
+
+/**
+ * Steam/PS-Plus style sync of one save set: upload if only the local copy changed, offer the cloud copy if
+ * only the cloud changed, and raise a conflict (side-by-side + file diff) if both changed since the last sync.
+ */
+export async function syncSave(local, { auto = false } = {}) {
+  initCloud();
+  if (!useCloud.getState().user) return { status: 'signed-out' };
+  await pull().catch(() => {});
+  const remote = useCloud.getState().saves.find((r) => r.id === local.id);
+  const base = cache.saveBase[local.id];
+  if (!remote) return { status: 'uploaded', meta: await uploadSave(local) };
+  if (remote.sha256 === local.hash) {
+    cache.saveBase[local.id] = { version: remote.version, sha: local.hash };
+    persist();
+    return { status: 'in-sync' };
+  }
+  const localChanged = !base || base.sha !== local.hash;
+  const remoteChanged = !base || base.version !== remote.version;
+  if (localChanged && !remoteChanged) return { status: 'uploaded', meta: await uploadSave(local) };
+  if (remoteChanged && !localChanged) {
+    set({ conflicts: { ...useCloud.getState().conflicts, [local.id]: { local, remote, kind: 'cloud-newer' } } });
+    return { status: 'cloud-newer', remote };
+  }
+  set({ conflicts: { ...useCloud.getState().conflicts, [local.id]: { local, remote, kind: 'conflict' } } });
+  return { status: 'conflict', remote, auto };
+}
+
+/** File-level diff between the local save set and the cloud manifest. */
+export async function diffSave(id) {
+  const [local, remote] = await Promise.all([localManifest(id), adapter.getManifest?.(id).catch(() => []) ?? []]);
+  const L = new Map(local.map((f) => [f.path, f]));
+  const R = new Map((remote || []).map((f) => [f.path, f]));
+  const rows = [];
+  for (const [path, f] of L) {
+    const r = R.get(path);
+    if (!r) rows.push({ path, change: 'local-only', local: f });
+    else if (r.size !== f.size || (r.sha256 && f.sha256 && r.sha256 !== f.sha256) || Math.abs((r.mtime || 0) - (f.mtime || 0)) > 2000) rows.push({ path, change: 'changed', local: f, remote: r });
+    else rows.push({ path, change: 'same', local: f, remote: r });
+  }
+  for (const [path, r] of R) if (!L.has(path)) rows.push({ path, change: 'cloud-only', remote: r });
+  return rows.sort((a, b) => ({ changed: 0, 'local-only': 1, 'cloud-only': 2, same: 3 })[a.change] - ({ changed: 0, 'local-only': 1, 'cloud-only': 2, same: 3 })[b.change] || a.path.localeCompare(b.path));
+}
+
+export async function resolveConflict(id, keep) {
+  const c = useCloud.getState().conflicts[id];
+  if (!c) return;
+  if (keep === 'local') await uploadSave(c.local, { force: true });
+  else await restoreSave(id);
+}
+
+// ---------------------------------------------------------------- v1.1 friends & chat
+let socialTimer = null;
+export async function refreshSocial() {
+  if (!adapter || !useCloud.getState().user || !adapter.listFriends) return;
+  try {
+    const [me, friends] = await Promise.all([useCloud.getState().me ? Promise.resolve(useCloud.getState().me) : adapter.me(), adapter.listFriends()]);
+    const prevUnread = useCloud.getState().unread;
+    const unread = friends.reduce((a, f) => a + (f.unread || 0), 0);
+    set({ me, friends, unread });
+    if (unread > prevUnread) window.dispatchEvent(new CustomEvent('lumos:new-message', { detail: { unread } }));
+  } catch (e) {
+    if (import.meta.env.DEV) console.debug('[social]', e.message);
+  }
+}
+export function startSocialPolling() {
+  clearInterval(socialTimer);
+  socialTimer = setInterval(refreshSocial, 20000);
+  refreshSocial();
+}
+export const addFriend = async (code) => {
+  const r = await adapter.addFriend(code);
+  await refreshSocial();
+  return r;
+};
+export const acceptFriend = async (id) => (await adapter.acceptFriend(id), refreshSocial());
+export const removeFriend = async (id) => (await adapter.removeFriend(id), refreshSocial());
+export const listMessages = (id, after) => adapter.listMessages(id, after);
+export const sendMessage = (id, msg) => adapter.sendMessage(id, msg);
+export const uploadMedia = (blob, title) => adapter.uploadMedia(blob, title);
+export const fetchMedia = (id, att) => adapter.fetchMedia(id, att);
 
 export async function deleteCloudSave(id) {
   await adapter.deleteSave(id);

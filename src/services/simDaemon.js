@@ -13,6 +13,9 @@ export function createSimDaemon(emit) {
       { id: 'joy-r-sim', slot: 1, side: 'right', name: 'Lumos Joy (R)', transport: 'pogo', battery: 81, charging: true, connected: true, gyro: true, fw: '1.0.0' },
     ],
     externals: [],
+    running: new Map(),
+    terminals: new Map(),
+    logs: [],
     faceOutcome: 'success',
     faceModels: [{ id: 1, label: 'Primäres Gesicht', created: now() - 86400e3 * 12 }],
     faceEnabled: true,
@@ -29,6 +32,7 @@ export function createSimDaemon(emit) {
     haptics: { intensity: 0.8, enabled: true },
     media: { player: 'spotify', title: 'Midnight City', artist: 'M83', album: "Hurry Up, We're Dreaming", art: '', position: 64, length: 243, playing: false },
     library: [
+      { id: 'builtin:orbit', kind: 'builtin', name: 'Lumos Orbit', lastPlayed: now() - 60e3, playtime: 42 },
       { id: 'steam:1145360', kind: 'steam', name: 'Hades', appid: 1145360, lastPlayed: now() - 3600e3 * 2, playtime: 3120 },
       { id: 'steam:367520', kind: 'steam', name: 'Hollow Knight', appid: 367520, lastPlayed: now() - 3600e3 * 26, playtime: 2210 },
       { id: 'steam:1086940', kind: 'steam', name: "Baldur's Gate 3", appid: 1086940, lastPlayed: now() - 3600e3 * 50, playtime: 8400 },
@@ -40,6 +44,69 @@ export function createSimDaemon(emit) {
     update: { current: '1.0.0', channel: 'stable', available: null, staged: null },
   };
   let jobSeq = 1;
+
+
+  function log(level, name, msg) {
+    state.logs.push({ t: now() / 1000, level, name: `lumosd.${name}`, msg });
+    if (state.logs.length > 1000) state.logs.shift();
+  }
+  log('INFO', 'server', 'Simulator gestartet (Browser-Vorschau)');
+  const prompt = (id) => `\x1b[1;32mlumos@lumos-one\x1b[0m:\x1b[1;34m${(state.terminals.get(id)?.cwd || '~').replace('/home/lumos', '~')}\x1b[0m$ `;
+  const FS = { '/home/lumos': ['Applications', 'Downloads', 'Videos', '.config'], '/home/lumos/Applications': ['Celeste.AppImage'], '/home/lumos/Downloads': ['wallpaper.jpg'], '/home/lumos/Videos': ['Lumos'] };
+  function runFake(id, cmd) {
+    const t = state.terminals.get(id);
+    const [c, ...args] = cmd.split(/\s+/);
+    const nl = (x) => `${x.replace(/\n/g, '\r\n')}\r\n`;
+    switch (c) {
+      case '':
+        return '';
+      case 'help':
+        return nl('Befehle: help, ls, cd, pwd, echo, clear, whoami, uname, uptime, date, lumosfetch, logs, ps, flatpak list, lumosctl status, exit');
+      case 'ls':
+        return nl((FS[t.cwd] || []).map((f) => (f.includes('.') ? f : `\x1b[1;34m${f}\x1b[0m`)).join('  '));
+      case 'cd': {
+        const dest = !args[0] || args[0] === '~' ? '/home/lumos' : args[0] === '..' ? t.cwd.split('/').slice(0, -1).join('/') || '/' : `${t.cwd}/${args[0]}`;
+        if (!FS[dest]) return nl(`cd: ${args[0]}: Datei oder Verzeichnis nicht gefunden`);
+        t.cwd = dest;
+        return '';
+      }
+      case 'pwd':
+        return nl(t.cwd);
+      case 'echo':
+        return nl(args.join(' '));
+      case 'clear':
+        return '\x1b[2J\x1b[H';
+      case 'whoami':
+        return nl('lumos');
+      case 'uname':
+        return nl('Linux lumos-one 6.18.2-arch1-1 #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux');
+      case 'uptime':
+        return nl(` ${new Date().toLocaleTimeString('de-DE')} up ${Math.round(performance.now() / 60000)} min, 1 user, load average: 0.42, 0.38, 0.31`);
+      case 'date':
+        return nl(new Date().toString());
+      case 'lumosfetch':
+      case 'neofetch':
+        return nl(`\x1b[1;36m   ▄▄▄▄▄▄▄   \x1b[0m  \x1b[1mlumos\x1b[0m@\x1b[1mlumos-one\x1b[0m
+\x1b[1;36m  █  ◉   █  \x1b[0m  OS: Lumos One 1.1 (Arch Linux)
+\x1b[1;36m  █ ▄▄▄  █  \x1b[0m  Host: Lumos One 8″ OLED · Framework 13
+\x1b[1;36m   ▀▀▀▀▀▀▀   \x1b[0m  CPU: AMD Ryzen 7 7840U · GPU: Radeon 780M
+              Display: 1920×1200 @ 165 Hz · Akku: ${Math.round(state.battery.percent)} %`);
+      case 'logs':
+        return nl(state.logs.slice(-15).map((l) => `\x1b[90m${new Date(l.t * 1000).toLocaleTimeString('de-DE')}\x1b[0m ${l.level === 'WARNING' ? '\x1b[33m' : '\x1b[32m'}${l.level}\x1b[0m ${l.name}: ${l.msg}`).join('\n'));
+      case 'ps':
+        return nl(['  PID  NAME', ...[...state.running.entries()].map(([pid, r]) => `${String(pid).padStart(5)}  ${r.name}`), ' 1337  lumosd'].join('\n'));
+      case 'flatpak':
+        return nl([...state.installed.values()].map((a) => `${a.name}\t${a.id}\t${a.version}`).join('\n'));
+      case 'lumosctl':
+        return nl(`lumosd: \x1b[32maktiv (Simulation)\x1b[0m · Controller: ${state.controllers.filter((x) => x.connected).length + state.externals.length} · Dock: ${state.dock.docked ? 'TV' : 'Handheld'}`);
+      case 'exit':
+        state.terminals.delete(id);
+        setTimeout(() => ev('terminal.exit', { id, status: 0 }), 10);
+        return nl('logout');
+      default:
+        return nl(`${c}: Befehl nicht gefunden (Simulation – echte Shell mit lumosd)`);
+    }
+  }
 
   // Ambient telemetry
   setInterval(() => {
@@ -120,7 +187,7 @@ export function createSimDaemon(emit) {
   const handlers = {
     'auth.hello': () => ({ ok: true, simulated: true, version: '1.0.0' }),
     'system.info': () => ({ hostname: 'lumos-one', os: 'Lumos One (Simulator)', kernel: navigator.userAgent.split(') ')[0].split('(')[1] || 'browser', cpu: 'AMD Ryzen 7 7840U (simuliert)', gpu: 'Radeon 780M (simuliert)', ram_total: 32e9, storage: { total: 1e12, free: 612e9 }, version: state.update.current, simulated: true }),
-    'system.stats': () => ({ cpu: 18 + Math.random() * 20, gpu: 10 + Math.random() * 30, temp_cpu: 52 + Math.random() * 6, temp_gpu: 49 + Math.random() * 6, ram_used: 9.2e9 + Math.random() * 1e9, fan_rpm: 2400 + Math.random() * 300, tdp_w: state.power.tdp_w, power_w: state.battery.watts }),
+    'system.stats': () => ({ net: { rx_bps: Math.round(20e3 + Math.random() * 400e3), tx_bps: Math.round(5e3 + Math.random() * 60e3) }, cpu: 18 + Math.random() * 20, gpu: 10 + Math.random() * 30, temp_cpu: 52 + Math.random() * 6, temp_gpu: 49 + Math.random() * 6, ram_used: 9.2e9 + Math.random() * 1e9, fan_rpm: 2400 + Math.random() * 300, tdp_w: state.power.tdp_w, power_w: state.battery.watts }),
     'system.power': ({ action }) => ({ ok: true, action, simulated: true }),
     'power.get': () => ({ ...state.power }),
     'power.battery': () => ({ ...state.battery, percent: Math.round(state.battery.percent) }),
@@ -156,8 +223,10 @@ export function createSimDaemon(emit) {
       const g = state.library.find((x) => x.id === id);
       if (!g) throw new Error('Unbekannter Titel');
       g.lastPlayed = now();
-      ev('library.launched', { id });
-      return { ok: true, pid: 4242, simulated: true };
+      const pid = 4200 + jobSeq++ * 7;
+      state.running.set(pid, { id, name: g.name, started: now() });
+      ev('library.launched', { id, pid });
+      return { ok: true, pid, simulated: true };
     },
     'steam.bigpicture': () => ({ ok: true, simulated: true }),
     'sideload.inspect': ({ path }) => ({ path, kind: path.endsWith('.AppImage') ? 'appimage' : path.endsWith('.flatpak') || path.endsWith('.flatpakref') ? 'flatpak' : 'binary', name: path.split('/').pop(), executable: true }),
@@ -273,6 +342,52 @@ export function createSimDaemon(emit) {
       ev('media.state', { ...state.media });
       return { ok: true };
     },
+
+    // ---------------------------------------------------------------- v1.1
+    'saves.manifest': ({ id }) => {
+      const h = Math.floor(now() / 3600e3);
+      return ['saves/Pokemon Emerald.srm', 'saves/Zelda Minish Cap.srm', 'states/Pokemon Emerald.state1', 'states/Metroid Fusion.state'].map((f, i) => ({ path: f, size: 65536 * (i + 1) + (f.includes('state1') ? h % 9 : 0), mtime: now() - i * 5400e3, sha256: `${id}-${f}-${f.includes('state1') ? h : 0}` }));
+    },
+    'system.logs': ({ limit = 300 } = {}) => state.logs.slice(-limit),
+    'process.list': () => [
+      ...[...state.running.entries()].map(([pid, r]) => ({ pid, id: r.id, name: r.name, kind: 'app', cpu: +(18 + Math.random() * 40).toFixed(1), rss: (0.6 + Math.random() * 1.8) * 1e9, threads: 24, uptime: Math.round((now() - r.started) / 1000), killable: true })),
+      { pid: 1337, id: 'lumosd', name: 'lumosd (Hardware-Daemon, simuliert)', kind: 'daemon', cpu: 0.4, rss: 48e6, killable: false },
+    ],
+    'process.kill': ({ pid }) => {
+      const r = state.running.get(pid);
+      if (!r) throw new Error('Prozess nicht gefunden');
+      state.running.delete(pid);
+      ev('library.exited', { id: r.id, code: -15, killed: true });
+      return { ok: true, signal: 'TERM' };
+    },
+    'permissions.apply': ({ id, perms }) => (log('INFO', 'apps', `Berechtigungen für ${id}: ${JSON.stringify(perms)}`), { ok: true, simulated: true }),
+    'profiles.set': ({ profiles }) => ({ ok: true, count: Object.keys(profiles || {}).length }),
+    'capture.status': () => ({ backend: 'browser', buffering: false }),
+    'capture.buffer': () => ({ ok: false, reason: 'Im Browser übernimmt die Shell die Aufnahme' }),
+    'hud.configure': (p) => ({ ok: true, ...p }),
+    'audio.eq': (p) => (log('INFO', 'audio', `Equalizer ${p.enabled ? 'an' : 'aus'}: ${(p.bands || []).join(' / ')} dB`), { ...p, simulated: true }),
+    'terminal.open': () => {
+      const id = `t${jobSeq++}`;
+      state.terminals.set(id, { cwd: '/home/lumos' });
+      setTimeout(() => ev('terminal.data', { id, data: `\x1b[1;36mLumos One Terminal\x1b[0m (Simulation – ohne lumosd im Browser)\r\nTippe \x1b[33mhelp\x1b[0m für Befehle.\r\n${prompt(id)}` }), 50);
+      return { id, shell: 'lumos-sim', pid: 0 };
+    },
+    'terminal.write': ({ id, data }) => {
+      const t = state.terminals.get(id);
+      if (!t) throw new Error('Sitzung beendet');
+      t.line = (t.line || '') + data;
+      if (data.includes('\x03')) {
+        t.line = '';
+        ev('terminal.data', { id, data: `^C\r\n${prompt(id)}` });
+      } else if (/[\r\n]/.test(data)) {
+        const cmd = t.line.replace(/[\r\n]+/g, '').trim();
+        t.line = '';
+        ev('terminal.data', { id, data: `${cmd}\r\n${runFake(id, cmd)}${state.terminals.has(id) ? prompt(id) : ''}` });
+      }
+      return { ok: true };
+    },
+    'terminal.resize': () => ({ ok: true }),
+    'terminal.close': ({ id }) => (state.terminals.delete(id), { ok: true }),
     // --- Developer panel ---
     'sim.state': () => ({ faceOutcome: state.faceOutcome, battery: state.battery, dock: state.dock, controllers: state.controllers }),
     'sim.faceid': ({ outcome }) => ((state.faceOutcome = outcome), { ok: true }),

@@ -48,6 +48,12 @@ contextBridge.exposeInMainWorld('lumos', {
     handoff: () => unwrap(ipcRenderer.invoke('window:handoff')),
     restore: () => unwrap(ipcRenderer.invoke('window:restore')),
   },
+  pip: {
+    open: (url) => unwrap(ipcRenderer.invoke('pip:open', url)),
+    close: () => unwrap(ipcRenderer.invoke('pip:close')),
+    opacity: (o) => unwrap(ipcRenderer.invoke('pip:opacity', o)),
+    scroll: (dx, dy) => unwrap(ipcRenderer.invoke('pip:scroll', dx, dy)),
+  },
   appInfo: () => ipcRenderer.invoke('app:info'),
   openExternal: (url) => unwrap(ipcRenderer.invoke('shell:openExternal', url)),
   onFaceIdPrompt: (cb) => on('faceid:prompt', cb),

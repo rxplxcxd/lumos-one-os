@@ -65,6 +65,27 @@ Kiosk-Betriebssystem-Oberfläche, Hardware-Daemon, Controller-Firmware, Cloud-Di
 * **Entwickler-Panel** (`Strg+Umschalt+D` / `F12`) – Face ID Pretend, virtuelle Joy-Cons (Pogo an/ab, Power, Akku), virtuelles Touch-Gamepad, Akku, Docking (4K-TV-Modus), Gyro-Override, Live-Event-Stream.
 * **Bildschirmtastatur** (QWERTZ, Umlaute, Symbole) für Controller-/Touch-Eingabe.
 
+## Neu in 1.1
+
+Kurzüberblick (Details in [`CHANGELOG.md`](CHANGELOG.md)):
+
+* **Akku & Energiesparen** – iOS-artige Warnbanner bei 20 / 10 / 2 %, echter Energiesparmodus (60 Hz, FPS ≤ 60, TDP ≤ 8 W, leiser Lüfter, weniger Unschärfe/Animationen, Hintergrund ≤ 30 fps), automatisch ab 10 %, sicheres Herunterfahren bei 2 % mit abbrechbarem Countdown.
+* **Controller-Cursor** – linker Stick steuert einen leuchtenden Licht-Cursor (Hover + A klickt), rechter Stick scrollt analog; in Spielen automatisch aus.
+* **Bildschirmtastatur** sitzt jetzt garantiert mittig (Portal direkt im `<body>`), QWERTZ-Belegung (Y/Z), Eingabe auch in WLAN- und Code-Dialogen.
+* **Terminal** (echte PTY über lumosd, ANSI-Farben, 3 Retro-Themes, Direktmodus) mit **System-Logs**; **Task-Manager** (`Strg+Alt+Entf`, `Strg+Umschalt+Esc` oder Select+Start).
+* **Apps & Berechtigungen** – Sensoren, Controller/Haptik, Speicher/Cloud, Netzwerk, Mitteilungen je App (Flatpak-Overrides), **Spielprofile** (FPS/TDP/Hz je Spiel).
+* **Lumos Cloud sozial** – Anmeldung/Registrierung, **automatischer Cloud-Save** beim Beenden eines Spiels, **Konflikt-Manager** mit Seiten-Vergleich und Datei-Diff, **Freunde (Freundescode) & Chat** inkl. geteilter Clips/Screenshots.
+* **Avatar-Studio** – neue Kategorie *Figur*: freie 3D-Charaktere (glTF, CC0/CC BY, werden beim ersten Öffnen geladen und lokal gecacht) oder **eigenes .glb-Modell**, Einfärben, Emotes aus den Modell-Animationen, Accessoires am Kopf-Knochen; neue Outfits (Anzug, Rüstung, Raumanzug) und Kostüme (Astronaut, Ritter, Hexe, Teufelchen, Weihnachtsmann, Osterhase, Engel, Agent).
+* **Aufnahmen** – 30-s-Replay-Puffer (`F10`), Screenshots (`F11`), Galerie mit Editor (Zuschneiden, Trimmen, Filter, echtes Neu-Encodieren) und Teilen im Chat.
+* **Spotlight-Suche** (`Strg+K` / Select) über Apps, Spiele, Einstellungen, Spielstände, Kontakte, Notizen, Flathub, Rechner und Web.
+* **Leistungs-HUD** (Minimal/Voll, MangoHud in Spielen), erweitertes **Entwickler-Panel** (FPS, Frametime-Graph, JS-Heap, CPU/GPU/RAM/Netz, Daemon-Logs).
+* **Web** mit **Bild-in-Bild** (YouTube/Twitch, auch als Overlay über Spielen), zuverlässige **Passwort-Sichern/Autofill-Leiste**, Face ID als **Dynamic-Island-Pille** oben.
+* **Audio-Equalizer** (5 Bänder, 7 Profile, echte Frequenzkurve), **Mehrbenutzer + Kindersicherung** (Profile mit PIN/Face ID, Eltern-PIN, Altersfreigaben USK/PEGI über OARS, Tageslimit, Freigabelisten), **Nachtmodus** (immer / Sonnenuntergang–Sonnenaufgang / Zeitplan), adaptive Helligkeit, **Pixel-Shift** und Dimmen statischer Elemente.
+* **Saisonale Themen** – Halloween, Weihnachten, Silvester, Ostern, Valentinstag automatisch nach Datum (oder fest gewählt): Partikel, Lichterketten, Kerzenflackern, Feuerwerk, festliches Dock, synthetische Jingles und versteckte Kürbisse/Ostereier.
+* **Neues Spiel** *Lumos Orbit* (eingebaut, funktioniert auch in der Browser-Vorschau).
+
+**Supabase-Nutzer:** für die neuen Cloud-Funktionen zusätzlich `cloud-server/supabase/schema_v1_1.sql` einmal im SQL-Editor ausführen (siehe [Lumos Cloud](#lumos-cloud)).
+
 ## Bedienung
 
 | Taste | Aktion |
@@ -77,8 +98,10 @@ Kiosk-Betriebssystem-Oberfläche, Hardware-Daemon, Controller-Firmware, Cloud-Di
 | + (Start) | Schnellzugriff (Helligkeit, Lautstärke, TDP, FPS, Power) |
 | Home | Startbildschirm (holt die Shell auch aus einem laufenden Spiel zurück) |
 | Capture | Schnellzugriff |
+| Select | Spotlight-Suche · **Select + Start**: Task-Manager |
+| Linker / rechter Stick | Licht-Cursor (A klickt) / Scrollen |
 
-Tastatur (Standardvorlage, alles umbelegbar): Pfeile oder WASD, Eingabe/Leertaste (A), Esc/Rücktaste (B), X/F (X), Y/R (Y), Q/E bzw. Bild↑/↓ (L/R), 1/3 (ZL/ZR), M/Tab (+), N (−), Pos1/F1 (Home), F9 (Capture), I/J/K/L (linker Stick), Ziffernblock 8/4/2/6 (rechter Stick).
+Tastatur (Standardvorlage, alles umbelegbar): Pfeile oder WASD, Eingabe/Leertaste (A), Esc/Rücktaste (B), X/F (X), Y/R (Y), Q/E bzw. Bild↑/↓ (L/R), 1/3 (ZL/ZR), M/Tab (+), N (−), Pos1/F1 (Home), F9 (Capture), I/J/K/L (linker Stick), Ziffernblock 8/4/2/6 (rechter Stick). Dazu: `F10` Clip (30 s), `F11` Screenshot, `Strg+K` Suche, `Strg+Alt+Entf` Task-Manager, `F12` Entwickler-Panel.
 
 ## Entwicklung am PC
 
@@ -182,7 +205,7 @@ PORT=8787 LUMOS_CLOUD_DATA=/var/lib/lumos-cloud node cloud-server/server.js
 
 Passwörter mit scrypt, Access-Token (HS256, 15 min) + rotierende Refresh-Token, optimistische Nebenläufigkeit (`version`), SHA-256-geprüfte Spielstände, atomare Speicherung. Für Internetbetrieb hinter einen TLS-Reverse-Proxy (Caddy/nginx) stellen.
 
-**Supabase**: neues Projekt anlegen → `cloud-server/supabase/schema.sql` im SQL-Editor ausführen → Projekt-URL und **anon key** in `.env` (`VITE_CLOUD_PROVIDER=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) eintragen oder direkt in **Einstellungen → Cloud-Dienste → Backend**. Der anon key ist öffentlich vorgesehen; alle Tabellen und der Storage-Bucket sind per Row-Level-Security auf den jeweiligen Nutzer beschränkt. Den **service_role key niemals** in die App eintragen.
+**Supabase**: neues Projekt anlegen → `cloud-server/supabase/schema.sql` und danach `cloud-server/supabase/schema_v1_1.sql` (Freunde, Chat, Medien, Spielstand-Manifeste; idempotent) im SQL-Editor ausführen → Projekt-URL und **anon key** in `.env` (`VITE_CLOUD_PROVIDER=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) eintragen oder direkt in **Einstellungen → Cloud-Dienste → Backend**. Der anon key ist öffentlich vorgesehen; alle Tabellen und der Storage-Bucket sind per Row-Level-Security auf den jeweiligen Nutzer beschränkt. Den **service_role key niemals** in die App eintragen.
 
 ## Updates
 

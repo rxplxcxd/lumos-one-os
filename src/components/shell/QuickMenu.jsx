@@ -1,6 +1,16 @@
 // Quick-access panel (Start / ≡ button): brightness, volume, performance, radios, power.
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Volume2, Gauge, Wifi, Bluetooth, Moon, Power, RotateCcw, Tv, Code2 } from 'lucide-react';
+import { Sun, Volume2, Gauge, Wifi, Bluetooth, Moon, Power, RotateCcw, Tv, Code2, Leaf, Activity, Clapperboard, Camera, Search, ListTree, SquareTerminal, Users, SlidersHorizontal, MoonStar } from 'lucide-react';
+import { open as openScreen } from '@/store/ui.js';
+import { saveClip, takeScreenshot } from '@/services/captureActions.js';
+import { toggleSpotlight } from '@/components/shell/Spotlight.jsx';
+import { openProfilePicker } from '@/components/shell/ProfilePicker.jsx';
+import { EQ_PRESETS } from '@/components/settings/V11Sections.jsx';
+import { setSettings } from '@/store/settings.js';
+
+const HUD_NEXT = { off: 'minimal', minimal: 'full', full: 'off' };
+const EQ_KEYS = Object.keys(EQ_PRESETS);
+const go = (fn) => () => (toggleQuickMenu(false), setTimeout(fn, 120));
 import { useUI, toggleQuickMenu, toggleDevPanel } from '@/store/ui.js';
 import { useSettings, setSetting } from '@/store/settings.js';
 import { useSystem } from '@/store/system.js';
@@ -52,6 +62,16 @@ export default function QuickMenu() {
               <Tile icon={Wifi} label="WLAN" active={v.wifiEnabled} onClick={() => (setSetting('wifiEnabled', !v.wifiEnabled), notify('network.set_wifi', { enabled: !v.wifiEnabled }))} />
               <Tile icon={Bluetooth} label="Bluetooth" active={v.bluetoothEnabled} onClick={() => (setSetting('bluetoothEnabled', !v.bluetoothEnabled), notify('bluetooth.set', { enabled: !v.bluetoothEnabled }))} />
               <Tile icon={Code2} label="Entwickler" active={false} onClick={() => (toggleQuickMenu(false), toggleDevPanel(true))} />
+              <Tile icon={Leaf} label="Energiesparen" active={v.lowPower} onClick={() => setSetting('lowPower', !v.lowPower)} />
+              <Tile icon={Activity} label={`HUD: ${{ off: 'Aus', minimal: 'Minimal', full: 'Voll' }[v.hudMode]}`} active={v.hudMode !== 'off'} onClick={() => setSetting('hudMode', HUD_NEXT[v.hudMode] || 'off')} />
+              <Tile icon={MoonStar} label="Nachtmodus" active={v.nightShiftMode !== 'off'} onClick={() => setSetting('nightShiftMode', v.nightShiftMode === 'off' ? 'manual' : 'off')} />
+              <Tile icon={SlidersHorizontal} label={`EQ: ${EQ_PRESETS[v.eqPreset]?.label || 'Eigenes'}`} active={v.eqEnabled} onClick={() => { const k = EQ_KEYS[(EQ_KEYS.indexOf(v.eqPreset) + 1) % EQ_KEYS.length]; setSettings({ eqPreset: k, eqBands: EQ_PRESETS[k].bands, eqEnabled: k !== 'neutral' }); }} />
+              <Tile icon={Clapperboard} label="Clip (30 s)" active={false} onClick={go(saveClip)} />
+              <Tile icon={Camera} label="Screenshot" active={false} onClick={go(takeScreenshot)} />
+              <Tile icon={Search} label="Suche" active={false} onClick={go(() => toggleSpotlight(true))} />
+              <Tile icon={ListTree} label="Task-Manager" active={false} onClick={go(() => openScreen('taskmanager'))} />
+              <Tile icon={SquareTerminal} label="Terminal" active={false} onClick={go(() => openScreen('terminal'))} />
+              <Tile icon={Users} label="Profil wechseln" active={false} onClick={go(openProfilePicker)} />
             </div>
             <div className="space-y-3">
               <Slider icon={Sun} label="Helligkeit" value={v.brightness} min={5} max={100} onChange={(x) => setSetting('brightness', x)} format={(x) => `${x}%`} />

@@ -76,3 +76,65 @@ test('auth, documents with optimistic concurrency, saves, devices', async () => 
     server.close();
   }
 });
+
+test('v1.1: friend codes, friendships, chat, media and save manifests', async () => {
+  const { server, url, dir } = await start();
+  try {
+    const a = new RestAdapter(url);
+    const b = new RestAdapter(url);
+    await a.signUp({ email: 'anna@example.com', password: 'correct horse', displayName: 'Anna' });
+    await b.signUp({ email: 'ben@example.com', password: 'battery staple', displayName: 'Ben' });
+    const meA = await a.me();
+    const meB = await b.me();
+    assert.match(meA.friendCode, /^[A-HJ-NP-Z2-9]{8}$/);
+    assert.notEqual(meA.friendCode, meB.friendCode);
+
+    // request → pending on both sides; strangers cannot chat
+    await assert.rejects(a.addFriend('NOPE-NOPE'), (e) => e.status === 404);
+    await assert.rejects(a.addFriend(meA.friendCode), (e) => e.status === 400);
+    await assert.rejects(a.sendMessage(meB.id, { text: 'hi' }), (e) => e.status === 403);
+    await a.addFriend(`${meB.friendCode.slice(0, 4).toLowerCase()}-${meB.friendCode.slice(4)}`); // tolerant input
+    assert.equal((await a.listFriends())[0].status, 'outgoing');
+    const pendB = await b.listFriends();
+    assert.equal(pendB.length, 1);
+    assert.equal(pendB[0].status, 'incoming');
+    await b.acceptFriend(meA.id);
+    assert.equal((await a.listFriends())[0].status, 'accepted');
+
+    // chat with incremental polling
+    const m1 = await a.sendMessage(meB.id, { text: 'Lust auf eine Runde?' });
+    assert.equal(m1.mine, true);
+    const inbox = await b.listMessages(meA.id);
+    assert.equal(inbox.length, 1);
+    assert.equal(inbox[0].text, 'Lust auf eine Runde?');
+    assert.equal(inbox[0].mine, false);
+    const m2 = await b.sendMessage(meA.id, { text: 'Klar!' });
+    assert.equal((await a.listMessages(meB.id, m1.t)).length, 1);
+    assert.ok(m2.t >= m1.t);
+
+    // media upload/download, shared via chat attachment
+    const clip = new Blob([crypto.randomBytes(5000)], { type: 'video/webm' });
+    const media = await a.uploadMedia(clip, 'Highlight');
+    assert.ok(media.id);
+    await a.sendMessage(meB.id, { text: '', attachment: { kind: 'clip', media: media.id, title: 'Highlight' } });
+    const got = await b.fetchMedia(media.id);
+    assert.equal(got.size, 5000);
+    const c = new RestAdapter(url);
+    await c.signUp({ email: 'carl@example.com', password: 'secret pass', displayName: 'Carl' });
+    await assert.rejects(c.fetchMedia(media.id), (e) => e.status === 403 || e.status === 404);
+
+    // save manifest for the diff viewer
+    const bytes = crypto.randomBytes(1000);
+    await a.uploadSave({ id: 'orbit', title: 'Lumos Orbit', sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes });
+    await a.putManifest('orbit', [{ path: 'slot1.sav', size: 1000, mtime: 1, sha256: 'ab' }]);
+    assert.equal((await a.getManifest('orbit'))[0].path, 'slot1.sav');
+
+    // unfriend ends the conversation
+    await a.removeFriend(meB.id);
+    assert.equal((await b.listFriends()).length, 0);
+    await assert.rejects(b.sendMessage(meA.id, { text: 'hallo?' }), (e) => e.status === 403);
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

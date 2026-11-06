@@ -16,6 +16,9 @@ from .faceid import FaceIdModule
 from .flatpak import FlatpakModule
 from .haptics import HapticsModule
 from .keypad import KeypadModule
+from .apps import AppsModule
+from .terminal import TerminalModule
+from . import logbuf
 from .library import LibraryModule
 from .media import MediaModule
 from .module import Context
@@ -28,7 +31,7 @@ from .sim import SimModule
 from .system import SystemModule
 from .update import UpdateModule
 
-MODULES = [SimModule, UpdateModule, PowerModule, SystemModule, DockModule, DisplayModule, AudioModule, NetworkModule, MediaModule, FlatpakModule, LibraryModule, SideloadModule, SavesModule, ControllerModule, KeypadModule, HapticsModule, FaceIdModule]
+MODULES = [SimModule, UpdateModule, PowerModule, SystemModule, DockModule, DisplayModule, AudioModule, NetworkModule, MediaModule, FlatpakModule, LibraryModule, SideloadModule, SavesModule, ControllerModule, KeypadModule, HapticsModule, FaceIdModule, TerminalModule, AppsModule]
 
 
 def build(cfg):
@@ -72,6 +75,7 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true")
     a = ap.parse_args()
     logging.basicConfig(level=logging.DEBUG if a.verbose else logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    logbuf.install()
     cfg = load({"simulate": a.simulate or None, "dev": a.dev or None, "host": a.host, "port": a.port})
     try:
         asyncio.run(amain(cfg))

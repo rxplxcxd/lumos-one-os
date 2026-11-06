@@ -121,6 +121,21 @@ class SystemModule(Module):
             if line.startswith("MemTotal:"):
                 mem_total = int(line.split()[1]) * 1024
         bat = self.ctx["power"].battery_snapshot()
+        rx = tx = 0
+        for line in (read("/proc/net/dev", "") or "").splitlines()[2:]:
+            name, _, rest = line.partition(":")
+            if name.strip() == "lo":
+                continue
+            f = rest.split()
+            if len(f) >= 9:
+                rx += int(f[0])
+                tx += int(f[8])
+        now_t = time.monotonic()
+        net = None
+        if getattr(self, "_last_net", None):
+            dt = max(0.001, now_t - self._last_net[0])
+            net = {"rx_bps": int((rx - self._last_net[1]) / dt), "tx_bps": int((tx - self._last_net[2]) / dt)}
+        self._last_net = (now_t, rx, tx)
         return {
             "cpu": round(cpu, 1),
             "gpu": gpu,
@@ -130,6 +145,7 @@ class SystemModule(Module):
             "ram_used": mem_total - mem_avail,
             "tdp_w": self.ctx["power"].state.get("tdp_w"),
             "power_w": bat.get("watts"),
+            "net": net,
             "t": time.time(),
         }
 

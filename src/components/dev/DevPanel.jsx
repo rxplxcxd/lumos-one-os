@@ -1,7 +1,8 @@
 // Developer control panel & hardware simulator (Ctrl+Shift+D / F12).
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FlaskConical, X, ScanFace, Gamepad2, Battery, Tv, Activity, Radio, Usb } from 'lucide-react';
+import { FlaskConical, X, ScanFace, Gamepad2, Battery, Tv, Activity, Radio, Usb, Gauge, ScrollText } from 'lucide-react';
+import { onFrameStats, startFpsMeter, memory } from '@/lib/fps.js';
 import { Toggle, Slider, Button } from '@/components/ui/primitives.jsx';
 import { request, on, bridgeMode } from '@/services/bridge.js';
 import { verifyFace } from '@/services/faceid.js';
@@ -32,6 +33,90 @@ function PadButton({ b, label, className = '' }) {
     >
       {label}
     </button>
+  );
+}
+
+const fmtB = (b) => (b == null ? '—' : b > 1e9 ? `${(b / 1e9).toFixed(2)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${(b / 1e3).toFixed(0)} kB`);
+
+// Live metrics: renderer FPS / 1 % low / frametime graph, JS heap, daemon CPU/GPU/RAM/net.
+function Metrics() {
+  const stats = useSystem((s) => s.stats);
+  const [f, setF] = useState({ fps: 0, low1: 0 });
+  const canvas = useRef(null);
+  useEffect(() => {
+    startFpsMeter();
+    return onFrameStats((fr) => {
+      setF({ fps: fr.fps, low1: fr.low1 });
+      const c = canvas.current?.getContext('2d');
+      if (!c) return;
+      const { width: w, height: h } = c.canvas;
+      c.clearRect(0, 0, w, h);
+      c.strokeStyle = 'rgba(255,255,255,0.12)';
+      c.beginPath();
+      const y16 = h - (16.7 / 50) * h;
+      c.moveTo(0, y16);
+      c.lineTo(w, y16);
+      c.stroke();
+      c.strokeStyle = '#5fd69a';
+      c.beginPath();
+      const n = fr.times.length;
+      for (let i = 0; i < n; i++) {
+        const v = fr.times[(fr.i + i) % n];
+        const y = h - Math.min(1, v / 50) * h;
+        i ? c.lineTo((i / (n - 1)) * w, y) : c.moveTo(0, y);
+      }
+      c.stroke();
+    });
+  }, []);
+  const mem = memory();
+  const rows = [
+    ['FPS (UI)', `${f.fps.toFixed(0)} · 1 % ${f.low1.toFixed(0)}`],
+    ['Frametime', `${(1000 / Math.max(1, f.fps)).toFixed(1)} ms`],
+    ['JS-Heap', mem ? `${fmtB(mem.used)} / ${fmtB(mem.total)}` : 'n/v'],
+    ['CPU / GPU', stats ? `${Math.round(stats.cpu ?? 0)} % · ${Math.round(stats.gpu ?? 0)} %` : '—'],
+    ['Temperatur', stats ? `${Math.round(stats.temp_cpu ?? 0)} °C · ${Math.round(stats.temp_gpu ?? 0)} °C` : '—'],
+    ['RAM', fmtB(stats?.ram_used)],
+    ['Netz ↓ / ↑', stats?.net ? `${fmtB(stats.net.rx_bps)}/s · ${fmtB(stats.net.tx_bps)}/s` : '—'],
+    ['Leistung', stats ? `${(stats.power_w ?? 0).toFixed?.(1)} W · TDP ${stats.tdp_w ?? '—'} W` : '—'],
+  ];
+  return (
+    <Card icon={Gauge} title="Leistung & Metriken">
+      <canvas ref={canvas} width={440} height={60} className="mb-2 h-[3.75rem] w-full rounded-xl bg-black/30" />
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[0.72rem]">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-2"><span className="text-mist-400">{k}</span><span className="tabular-nums">{v}</span></div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+const LEVEL_C = { ERROR: 'text-bad', CRITICAL: 'text-bad', WARNING: 'text-warn', INFO: 'text-mist-200', DEBUG: 'text-mist-500' };
+function DaemonLogs() {
+  const [rows, setRows] = useState([]);
+  const [lvl, setLvl] = useState(null);
+  useEffect(() => {
+    const load = () => request('system.logs', { limit: 80, level: lvl || undefined }).then((r) => setRows((r || []).filter((x) => !lvl || x.level === lvl).slice(-80)), () => {});
+    load();
+    const t = setInterval(load, 2000);
+    return () => clearInterval(t);
+  }, [lvl]);
+  return (
+    <Card icon={ScrollText} title="Daemon-Logs">
+      <div className="mb-2 flex gap-1.5">
+        {[[null, 'Alle'], ['ERROR', 'Fehler'], ['WARNING', 'Warn'], ['INFO', 'Info']].map(([k, l]) => (
+          <Button key={l} size="sm" variant={lvl === k ? 'primary' : 'subtle'} onClick={() => setLvl(k)}>{l}</Button>
+        ))}
+      </div>
+      <div className="max-h-48 overflow-y-auto font-mono text-[0.66rem] leading-snug">
+        {rows.length === 0 && <div className="text-mist-500">Keine Einträge</div>}
+        {[...rows].reverse().map((r, i) => (
+          <div key={i} className={LEVEL_C[r.level] || ''}>
+            <span className="text-mist-500">{new Date(r.t * 1000).toLocaleTimeString('de-DE')}</span> {r.level.padEnd(7)} {r.name.replace('lumosd.', '')}: {r.msg}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -67,6 +152,7 @@ export default function DevPanel() {
         <button data-nav="" onClick={() => toggleDevPanel(false)} className="nav-focus rounded-full bg-white/10 p-2" aria-label="Schließen"><X className="h-4 w-4" /></button>
       </header>
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <Metrics />
         <Card icon={ScanFace} title="Face ID Pretend">
           <div className="mb-3 grid grid-cols-3 gap-2">
             {[['success', 'Erfolg'], ['fail', 'Abgelehnt'], ['none', 'Kein Gesicht']].map(([k, l]) => (
@@ -166,6 +252,7 @@ export default function DevPanel() {
             {!log.length && <div className="text-mist-500">Warte auf Events …</div>}
           </div>
         </Card>
+        <DaemonLogs />
       </div>
     </motion.aside>
   );
