@@ -12,6 +12,7 @@ export function createSimDaemon(emit) {
       { id: 'joy-l-sim', slot: 1, side: 'left', name: 'Lumos Joy (L)', transport: 'pogo', battery: 84, charging: true, connected: true, gyro: true, fw: '1.0.0' },
       { id: 'joy-r-sim', slot: 1, side: 'right', name: 'Lumos Joy (R)', transport: 'pogo', battery: 81, charging: true, connected: true, gyro: true, fw: '1.0.0' },
     ],
+    externals: [],
     faceOutcome: 'success',
     faceModels: [{ id: 1, label: 'Primäres Gesicht', created: now() - 86400e3 * 12 }],
     faceEnabled: true,
@@ -52,7 +53,11 @@ export function createSimDaemon(emit) {
     ev('gyro', { pitch: Math.sin(t * 0.7) * 1.5, roll: Math.cos(t * 0.5) * 1.5, yaw: 0, gx: 0, gy: 0, gz: 0, simulated: true });
   }, 50);
 
-  const controllersChanged = () => ev('controllers.changed', state.controllers.filter((c) => c.connected));
+  const controllerList = () => {
+    let slot = 2;
+    return [...state.controllers.filter((c) => c.connected), ...state.externals.map((e) => ({ ...e, slot: e.assigned || slot++ }))];
+  };
+  const controllersChanged = () => ev('controllers.changed', controllerList());
 
   function runFlatpak(op, id, meta = {}) {
     const job = `job-${jobSeq++}`;
@@ -188,7 +193,39 @@ export function createSimDaemon(emit) {
     'faceid.test': async () => (await sleep(600), { ok: true, detail: 'Simulierte IR-Kamera 640×360 @ 30 fps' }),
     'haptics.play': () => ({ ok: true }),
     'haptics.set': (p) => Object.assign(state.haptics, p),
-    'controllers.list': () => state.controllers.filter((c) => c.connected),
+    'controllers.list': () => controllerList(),
+    'controllers.rumble': () => ({ ok: true, simulated: true }),
+    'controllers.assign': ({ id, slot }) => {
+      const e = state.externals.find((x) => x.id === id);
+      if (e) e.assigned = slot;
+      controllersChanged();
+      return { ok: true };
+    },
+    'input.keyboard_pad': (p) => ({ mode: p.mode, keys: Object.values(p.bindings || {}).flat().length }),
+    'input.shell_visible': () => ({ ok: true }),
+    'sim.usb_controller': ({ model = 'xbox', connected = true }) => {
+      const M = {
+        xbox: { name: 'Xbox Wireless Controller', family: 'xbox', vendor: '045e', product: '0b13', transport: 'bt', battery: 72, driver: 'xpadneo' },
+        dualsense: { name: 'DualSense', family: 'playstation', vendor: '054c', product: '0ce6', transport: 'usb', battery: 100, driver: 'hid-playstation' },
+        pro: { name: 'Switch Pro Controller', family: 'nintendo', vendor: '057e', product: '2009', transport: 'bt', battery: 55, driver: 'hid-nintendo' },
+        '8bitdo': { name: '8BitDo Controller', family: 'nintendo', vendor: '2dc8', product: '3106', transport: 'usb', battery: null, driver: 'xpad / hid-generic' },
+        generic: { name: 'USB Gamepad (DragonRise)', family: 'generic', vendor: '0079', product: '0006', transport: 'usb', battery: null, driver: 'hid-generic' },
+      }[model];
+      if (!M) throw new Error('Unbekanntes Modell');
+      const id = `ext-${M.vendor}${M.product}-sim`;
+      const has = state.externals.find((x) => x.id === id);
+      if (connected && !has) {
+        if (state.controllers.filter((c) => c.connected).length + state.externals.length >= 4) throw new Error('Maximal 4 Controller');
+        const e = { id, side: 'pro', ...M, charging: M.transport === 'usb', connected: true, gyro: M.family !== 'xbox' && M.family !== 'generic', rumble: true };
+        state.externals.push(e);
+        ev('controller.attached', { ...e });
+      } else if (!connected && has) {
+        state.externals = state.externals.filter((x) => x.id !== id);
+        ev('controller.detached', { ...has, lost: true });
+      }
+      controllersChanged();
+      return { ok: true };
+    },
     'controllers.set': ({ id, ...rest }) => Object.assign(state.controllers.find((c) => c.id === id) || {}, rest),
     'controllers.identify': () => ({ ok: true }),
     'controllers.configure': (p) => ({ ok: true, ...p }),

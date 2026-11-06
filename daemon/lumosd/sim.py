@@ -38,6 +38,7 @@ class SimModule(Module):
         self.media = {"player": "spotify", "title": "Midnight City", "artist": "M83", "album": "Hurry Up, We're Dreaming", "art": "", "position": 64, "length": 243, "playing": False}
         self.saves = [{"id": "retroarch", "title": "RetroArch (Saves & States)", "path": "~/.var/app/org.libretro.RetroArch/config/retroarch/saves", "size": 18_000_000, "mtime": int(now - 86400e3), "hash": "sim-retroarch", "files": 42}]
         self.gyro_override = None
+        self.externals: dict[str, dict] = {}
 
     def methods(self):
         return {
@@ -49,6 +50,7 @@ class SimModule(Module):
             "sim.dock": self.set_dock,
             "sim.button": self.button,
             "sim.gyro": self.gyro,
+            "sim.usb_controller": self.usb_controller,
         }
 
     def _need_sim(self):
@@ -77,7 +79,18 @@ class SimModule(Module):
         return {**self._battery, "percent": round(self._battery["percent"])}
 
     def controller_list(self):
-        return [dict(j) for j in self.joys.values() if j["connected"]]
+        out = [dict(j) for j in self.joys.values() if j["connected"]]
+        slot = 2
+        for e in self.externals.values():
+            out.append({**e, "slot": e.get("assigned") or slot})
+            slot += 1
+        return out
+
+    def assign(self, ext_id, slot):
+        if ext_id in self.externals:
+            self.externals[ext_id]["assigned"] = slot
+        self._changed()
+        return {"ok": True}
 
     def wifi_list(self):
         return [{"ssid": "Lumos-Home", "signal": 82, "security": "WPA2", "connected": True}, {"ssid": "FRITZ!Box 7590 XY", "signal": 64, "security": "WPA2", "connected": False}]
@@ -183,6 +196,37 @@ class SimModule(Module):
         self.emit("input.button", {"button": b, "pressed": pressed, "source": "virtual"})
         if b == "home" and pressed:
             self.emit("input.home", {})
+        return {"ok": True}
+
+    SIM_PADS = {
+        "xbox": ("045e", "0b13", "bt", 72),
+        "dualsense": ("054c", "0ce6", "usb", 100),
+        "pro": ("057e", "2009", "bt", 55),
+        "8bitdo": ("2dc8", "3106", "usb", None),
+        "generic": ("0079", "0006", "usb", None),
+    }
+
+    async def usb_controller(self, p):
+        self._need_sim()
+        from .padsdb import classify
+
+        model = p.get("model", "xbox")
+        if model not in self.SIM_PADS:
+            raise RpcError("model: xbox|dualsense|pro|8bitdo|generic", "EINVAL")
+        vid, pid, transport, bat = self.SIM_PADS[model]
+        ext_id = f"ext-{vid}{pid}-sim"
+        if p.get("connected", True):
+            if len([j for j in self.joys.values() if j["connected"]]) + len(self.externals) >= 4 and ext_id not in self.externals:
+                raise RpcError("Maximal 4 Controller", "ELIMIT")
+            info = classify(int(vid, 16), int(pid, 16), "")
+            e = {"id": ext_id, "side": "pro", "name": info["model"] if model != "generic" else "USB Gamepad (DragonRise)", "family": info["family"], "driver": info["driver"], "vendor": vid, "product": pid,
+                 "transport": transport, "battery": bat, "charging": transport == "usb", "connected": True, "gyro": info["family"] in ("playstation", "nintendo"), "rumble": True}
+            if ext_id not in self.externals:
+                self.externals[ext_id] = e
+                self.emit("controller.attached", e)
+        elif ext_id in self.externals:
+            self.emit("controller.detached", {**self.externals.pop(ext_id), "lost": True})
+        self._changed()
         return {"ok": True}
 
     async def gyro(self, p):

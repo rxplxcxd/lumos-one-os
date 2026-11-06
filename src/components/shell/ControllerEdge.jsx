@@ -5,22 +5,54 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSystem } from '@/store/system.js';
 import { BatteryGlyph } from './StatusBar.jsx';
 import { spring } from '@/lib/motion.js';
+import { useSettings } from '@/store/settings.js';
+import { Gamepad2 } from 'lucide-react';
+import { FAMILY_LABEL } from '@/lib/controllers.js';
+
+const FAMILY_COLOR = { xbox: '#107c10', playstation: '#2f5fd0', nintendo: '#e60012', generic: '#6b7280', lumos: '#8a8f99' };
+
+function ExternalPopup({ show, attached }) {
+  const c = show.c;
+  const color = FAMILY_COLOR[c.family] || FAMILY_COLOR.generic;
+  return (
+    <AnimatePresence>
+      <div key={show.t} className="pointer-events-none fixed inset-x-0 top-[4.2rem] z-[60] flex justify-center">
+        <motion.div className="glass-strong flex items-center gap-4 rounded-full py-2.5 pl-2.5 pr-6" initial={{ y: -50, opacity: 0, scale: 0.85 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: -40, opacity: 0 }} transition={spring.bouncy}>
+          <motion.span className="relative flex h-11 w-11 items-center justify-center rounded-full" style={{ background: color }} animate={attached ? { scale: [1, 1.18, 1] } : { rotate: [0, -12, 12, 0] }} transition={{ duration: 0.6 }}>
+            <Gamepad2 className="h-6 w-6 text-white" />
+            {attached && <motion.span className="absolute inset-0 rounded-full" style={{ boxShadow: `0 0 0 2px ${color}` }} initial={{ scale: 1, opacity: 0.9 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 0.9 }} />}
+          </motion.span>
+          <div>
+            <div className="text-[0.88rem] font-semibold">{c.name} {attached ? 'verbunden' : 'getrennt'}</div>
+            <div className="text-[0.72rem] text-mist-300">
+              {FAMILY_LABEL[c.family] || 'Controller'} · {c.transport === 'bt' ? 'Bluetooth' : 'USB'}
+              {attached && c.slot ? ` · Spieler ${c.slot}` : ''}
+              {c.battery != null ? ` · ${c.battery}%` : ''}
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
 
 export default function ControllerEdge() {
   const ev = useSystem((s) => s.detachEvent);
   const [show, setShow] = useState(null);
+  const notifyOn = useSettings((st) => st.values.notifyControllers);
   useEffect(() => {
-    if (!ev) return undefined;
+    if (!ev || !notifyOn) return undefined;
     setShow(ev);
     const t = setTimeout(() => setShow(null), 2600);
     return () => clearTimeout(t);
-  }, [ev]);
+  }, [ev, notifyOn]);
 
   const side = show?.c?.side === 'right' ? 'right' : 'left';
   const attached = show?.kind === 'attached';
   const glow = attached ? '127,163,255' : '255,255,255';
   const transportLabel = { pogo: 'Angedockt · lädt', ble: 'Bluetooth LE', usb: 'USB', bt: 'Bluetooth' }[show?.c?.transport] || '';
 
+  if (show && show.c?.side !== 'left' && show.c?.side !== 'right') return <ExternalPopup show={show} attached={attached} />;
   return (
     <AnimatePresence>
       {show && (
@@ -39,8 +71,9 @@ export default function ControllerEdge() {
             animate={{ scaleY: 1 }}
             transition={spring.soft}
           />
+          <div className={`absolute inset-y-0 flex items-center ${side === 'left' ? 'left-6' : 'right-6'}`}>
           <motion.div
-            className={`glass-strong absolute top-1/2 flex -translate-y-1/2 items-center gap-3 rounded-3xl px-4 py-3 ${side === 'left' ? 'left-6' : 'right-6'}`}
+            className="glass-strong flex items-center gap-3 rounded-3xl px-4 py-3"
             initial={{ x: side === 'left' ? -60 : 60, opacity: 0, scale: 0.9 }}
             animate={{ x: 0, opacity: 1, scale: 1 }}
             exit={{ x: side === 'left' ? -40 : 40, opacity: 0 }}
@@ -58,6 +91,7 @@ export default function ControllerEdge() {
               </div>
             </div>
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

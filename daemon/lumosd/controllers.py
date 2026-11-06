@@ -1,5 +1,5 @@
 """Controller management: Lumos Joy halves over pogo-pin serial (USB-CDC/UART) or Bluetooth LE,
-one external gamepad (evdev), virtual uinput gamepad + motion sensors + gyro mouse, gyro feed
+third-party USB/Bluetooth gamepads (evdev, identified via padsdb, rumble via force feedback), virtual uinput gamepad + motion sensors + gyro mouse, gyro feed
 for the UI, hot-plug attach/detach events."""
 from __future__ import annotations
 
@@ -7,11 +7,13 @@ import asyncio
 import glob
 import math
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
 
 from . import protocol as P
+from .padsdb import classify
 from .module import Module
 from .server import RpcError
 from .util import read, read_int
@@ -204,6 +206,18 @@ class VirtualPad:
         self.motion.write(E.EV_MSC, E.MSC_TIMESTAMP, t_us & 0x7FFFFFFF)
         self.motion.syn()
 
+    def key(self, code_name: str, value: int):
+        if self.pad:
+            self.pad.write(E.EV_KEY, getattr(E, code_name), value)
+
+    def axis(self, code_name: str, value: int):
+        if self.pad:
+            self.pad.write(E.EV_ABS, getattr(E, code_name), value)
+
+    def syn(self):
+        if self.pad:
+            self.pad.syn()
+
     def write_mouse(self, dx, dy):
         if self.mouse and (dx or dy):
             self.mouse.write(E.EV_REL, E.REL_X, int(dx))
@@ -227,7 +241,10 @@ class ControllerModule(Module):
         self.joys: dict[str, Joy] = {}  # side -> Joy
         self.links: dict[str, object] = {}  # port -> link
         self.pending: dict[str, float] = {}
-        self.external: dict | None = None
+        self.externals: dict[str, dict] = {}  # id -> public info (+ '_path')
+        self.slots: dict[str, int] = {}  # id -> player slot (user assignment)
+        self.external_rumble = True
+        self.MAX_CONTROLLERS = 4
         self.vpad = None
         self.settings = {"gyro_enabled": True, "gyro_sensitivity": 1.0, "gyro_as_mouse": False, "stick_deadzone": 0.08, "swap_ab": False}
         self.neutral = None
@@ -243,6 +260,8 @@ class ControllerModule(Module):
             "controllers.set": self.configure,
             "controllers.identify": self.identify,
             "controllers.calibrate": self.calibrate,
+            "controllers.rumble": self.rumble,
+            "controllers.assign": self.assign,
         }
 
     async def start(self):
@@ -263,8 +282,13 @@ class ControllerModule(Module):
         if self.cfg.simulate:
             return self.ctx["sim"].controller_list()
         out = [j.public(1) for j in self.joys.values()]
-        if self.external:
-            out.append({**self.external, "slot": 2})
+        next_slot = 2 if self.joys else 1
+        for ext_id, e in sorted(self.externals.items(), key=lambda kv: kv[1]["since"]):
+            slot = self.slots.get(ext_id)
+            if slot is None:
+                slot = next_slot
+                next_slot += 1
+            out.append({k: v for k, v in e.items() if not k.startswith("_")} | {"slot": slot})
         return out
 
     def changed(self):
@@ -427,42 +451,138 @@ class ControllerModule(Module):
             n = self.neutral
             self.emit("gyro", {"pitch": round(pitch - n[0], 2), "roll": round(roll - n[1], 2), "yaw": round(yaw - n[2], 2), "gx": round(j.gyro[0], 1), "gy": round(j.gyro[1], 1), "gz": round(j.gyro[2], 1)})
 
-    # ---------------------------------------------------------------- external controller (1×)
-    async def _external_discovery(self):
-        while True:
-            found = None
-            for path in sorted(glob.glob("/dev/input/event*")):
-                try:
-                    d = evdev.InputDevice(path)
-                except OSError:
-                    continue
+    # ---------------------------------------------------------------- third-party controllers
+    @staticmethod
+    def scan_external() -> dict[str, dict]:
+        """One entry per physical pad (sibling nodes such as motion sensors/touchpads are merged by `phys`)."""
+        found: dict[str, dict] = {}
+        for path in sorted(glob.glob("/dev/input/event*"), key=lambda p: int(re.sub(r"\D", "", p) or 0)):
+            try:
+                d = evdev.InputDevice(path)
+            except OSError:
+                continue
+            try:
                 caps = d.capabilities()
                 keys = caps.get(E.EV_KEY, [])
-                if "lumos" in d.name.lower() or E.EV_ABS not in caps or (E.BTN_SOUTH not in keys and E.BTN_GAMEPAD not in keys):
-                    d.close()
+                if "lumos" in d.name.lower() or E.EV_ABS not in caps or not (E.BTN_SOUTH in keys or E.BTN_GAMEPAD in keys or E.BTN_TRIGGER in keys):
                     continue
-                bat = self._battery_for(d.name)
-                transport = "bt" if d.info.bustype == 0x05 else "usb"
-                found = {"id": f"ext-{d.info.vendor:04x}{d.info.product:04x}", "side": "pro", "name": d.name, "transport": transport, "battery": bat[0], "charging": bat[1], "connected": True, "gyro": False}
+                uid = (d.uniq or d.phys or path).split("/input")[0]
+                ext_id = f"ext-{d.info.vendor:04x}{d.info.product:04x}-{abs(hash(uid)) % 0xFFFF:04x}"
+                if ext_id in found:
+                    continue
+                info = classify(d.info.vendor, d.info.product, d.name)
+                bat, chg = ControllerModule._battery_for(d.name, d.uniq)
+                found[ext_id] = {
+                    "id": ext_id, "side": "pro", "name": info["model"] if info["family"] != "generic" else d.name, "device_name": d.name,
+                    "family": info["family"], "driver": info["driver"], "vendor": f"{d.info.vendor:04x}", "product": f"{d.info.product:04x}",
+                    "transport": "bt" if d.info.bustype == 0x05 else "usb", "battery": bat, "charging": chg, "connected": True,
+                    "gyro": info["family"] in ("playstation", "nintendo"),
+                    "rumble": E.EV_FF in caps, "_path": path, "since": time.monotonic(),
+                }
+            finally:
                 d.close()
-                break
-            if (found or {}).get("id") != (self.external or {}).get("id") or (found and found.get("battery") != self.external.get("battery")):
-                had = self.external
-                self.external = found
-                if found and not had:
-                    self.emit("controller.attached", found)
-                elif had and not found:
-                    self.emit("controller.detached", {**had, "lost": True})
+        return found
+
+    async def _external_discovery(self):
+        loop = asyncio.get_running_loop()
+        while True:
+            try:
+                found = await loop.run_in_executor(None, self.scan_external)
+            except Exception as e:  # noqa: BLE001
+                self.log.debug("external scan: %s", e)
+                found = {}
+            changed = False
+            for ext_id, e in found.items():
+                old = self.externals.get(ext_id)
+                if not old:
+                    if len(self.joys) + len(self.externals) >= self.MAX_CONTROLLERS:
+                        continue  # 4 controllers max (Joy L + R count as two)
+                    self.externals[ext_id] = e
+                    self.log.info("controller connected: %s (%s, %s)", e["name"], e["family"], e["transport"])
+                    self.emit("controller.attached", {k: v for k, v in e.items() if not k.startswith("_")})
+                    changed = True
+                elif (old["battery"], old["charging"], old["_path"]) != (e["battery"], e["charging"], e["_path"]):
+                    e["since"] = old["since"]
+                    self.externals[ext_id] = e
+                    changed = True
+            for ext_id in [k for k in self.externals if k not in found]:
+                gone = self.externals.pop(ext_id)
+                self.log.info("controller disconnected: %s", gone["name"])
+                self.emit("controller.detached", {**{k: v for k, v in gone.items() if not k.startswith("_")}, "lost": True})
+                changed = True
+            if changed:
                 self.changed()
-            await asyncio.sleep(2)
+            await asyncio.sleep(1.5)
+
+    def rumble_external(self, steps: list[dict], intensity: float, ext_id: str | None = None):
+        """Plays a shared/haptics.json `rumble` envelope on third-party pads via evdev force feedback."""
+        if evdev is None or not self.external_rumble:
+            return 0
+        n = 0
+        for e in list(self.externals.values()):
+            if (ext_id and e["id"] != ext_id) or not e.get("rumble"):
+                continue
+            self.spawn(asyncio.get_running_loop().run_in_executor(None, self._play_ff, e["_path"], steps, intensity))
+            n += 1
+        return n
 
     @staticmethod
-    def _battery_for(name: str):
+    def _play_ff(path, steps, intensity):
+        from evdev import ff
+
+        try:
+            dev = evdev.InputDevice(path)
+        except OSError:
+            return
+        try:
+            for st in steps:
+                ms = int(st.get("ms", 20))
+                strong, weak = st.get("strong", 0) * intensity, st.get("weak", 0) * intensity
+                if strong <= 0 and weak <= 0:
+                    time.sleep(ms / 1000)
+                    continue
+                effect = ff.Effect(E.FF_RUMBLE, -1, 0, ff.Trigger(0, 0), ff.Replay(ms, 0), ff.EffectType(ff_rumble_effect=ff.Rumble(strong_magnitude=int(0xFFFF * min(1, strong)), weak_magnitude=int(0xFFFF * min(1, weak)))))
+                eid = dev.upload_effect(effect)
+                dev.write(E.EV_FF, eid, 1)
+                time.sleep(ms / 1000)
+                dev.erase_effect(eid)
+        except OSError:
+            pass  # no write permission (udev rule) or pad without FF
+        finally:
+            dev.close()
+
+    async def rumble(self, p):
+        if self.cfg.simulate:
+            return {"ok": True, "simulated": True}
+        steps = p.get("steps") or [{"strong": 0.8, "weak": 0.6, "ms": 180}, {"strong": 0, "weak": 0, "ms": 80}, {"strong": 0.4, "weak": 0.9, "ms": 140}]
+        target = p.get("id")
+        if target and target.startswith("joy-"):
+            for j in self.joys.values():
+                if j.id == target and j.link:
+                    j.link.send(P.IDENTIFY, b"\x01")
+            return {"ok": True}
+        return {"ok": self.rumble_external(steps, float(p.get("intensity", 1.0)), target) > 0}
+
+    async def assign(self, p):
+        ext_id, slot = p.get("id"), int(p.get("slot", 0))
+        if not 1 <= slot <= 4:
+            raise RpcError("Spieler 1–4", "EINVAL")
+        if self.cfg.simulate:
+            return self.ctx["sim"].assign(ext_id, slot)
+        self.slots[ext_id] = slot
+        self.changed()
+        return {"ok": True}
+
+    @staticmethod
+    def _battery_for(name: str, uniq: str | None = None):
+        """hid-playstation / hid-nintendo / xpadneo expose the pad battery as a power_supply with scope Device."""
+        mac = (uniq or "").lower().replace("-", ":")
         for ps in glob.glob("/sys/class/power_supply/*"):
             if read(f"{ps}/scope") != "Device":
                 continue
             model = (read(f"{ps}/model_name") or "").lower()
-            if model and (model in name.lower() or name.lower() in model):
+            base = os.path.basename(ps).lower()
+            if (mac and mac in base) or (model and (model in name.lower() or name.lower() in model)):
                 return read_int(f"{ps}/capacity"), read(f"{ps}/status") == "Charging"
         return None, False
 

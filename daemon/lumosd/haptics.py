@@ -27,6 +27,8 @@ class HapticsModule(Module):
             self.enabled = bool(p["enabled"])
         if "intensity" in p:
             self.intensity = max(0.0, min(1.0, float(p["intensity"])))
+        if "external_rumble" in p:
+            self.ctx["controllers"].external_rumble = bool(p["external_rumble"])
         return {"enabled": self.enabled, "intensity": self.intensity}
 
     def body_for(self, name: str, intensity: float | None = None) -> bytes:
@@ -40,7 +42,8 @@ class HapticsModule(Module):
             return {"ok": True, "skipped": True}
         name = p.get("pattern", "")
         target = p.get("target", "all")
-        body = self.body_for(name, min(1.0, float(p.get("intensity", self.intensity))))
+        intensity = min(1.0, float(p.get("intensity", self.intensity)))
+        body = self.body_for(name, intensity)
         sent = 0
         ctl = self.ctx["controllers"]
         for link in ctl.links_for("all" if target == "body" else target):
@@ -50,5 +53,7 @@ class HapticsModule(Module):
         if chassis and target in ("all", "body"):
             chassis.send(P.HAPTIC, body)
             sent += 1
+        if target in ("all", "external") and not self.cfg.simulate:
+            sent += ctl.rumble_external(self.catalog[name].get("rumble", []), intensity)
         self.played += 1
         return {"ok": True, "actuators": sent}

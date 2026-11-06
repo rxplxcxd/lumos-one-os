@@ -1,6 +1,6 @@
 // WebGL2 renderer for the living backgrounds. Runs at display refresh (up to 165 Hz) with
 // dynamic resolution scaling so the shell never drops frames because of the wallpaper.
-import { VERT, FRAG, PARTICLE_VERT, PARTICLE_FRAG } from './shaders.js';
+import { VERT, FRAG, PARTICLE_VERT, PARTICLE_FRAG, PARTICLES as PARTICLE_THEMES } from './shaders.js';
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -29,7 +29,7 @@ function program(gl, vs, fs) {
   return { p, u: uniforms };
 }
 
-const PARTICLES = 1400;
+const PARTICLES = 2400;
 
 export class BackgroundRenderer {
   constructor(canvas) {
@@ -148,7 +148,8 @@ export class BackgroundRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.disableVertexAttribArray(loc);
 
-    if (theme === 'drift') {
+    const pconf = PARTICLE_THEMES[theme];
+    if (pconf) {
       const pp = this.particles;
       gl.useProgram(pp.p);
       gl.enable(gl.BLEND);
@@ -159,7 +160,10 @@ export class BackgroundRenderer {
       gl.vertexAttribPointer(sl, 4, gl.FLOAT, false, 0, 0);
       this.#uniforms(pp.u, s);
       gl.uniform1f(pp.u.uDpr, this.dpr);
-      gl.drawArrays(gl.POINTS, 0, PARTICLES);
+      gl.uniform1i(pp.u.uMode, pconf.mode);
+      gl.uniform3f(pp.u.uPColor, ...pconf.color);
+      const base = pconf.mode === 3 ? 900 : pconf.mode === 2 ? 160 : pconf.mode === 1 ? 1600 : 1400;
+      gl.drawArrays(gl.POINTS, 0, Math.max(16, Math.min(PARTICLES, Math.round(base * (s.particles ?? 1)))));
       gl.disableVertexAttribArray(sl);
     }
   }
@@ -173,6 +177,7 @@ export class BackgroundRenderer {
     if (u.uRipple) gl.uniform3f(u.uRipple, s.ripple[0], s.ripple[1], s.ripple[2]);
     if (u.uAmp) gl.uniform1f(u.uAmp, s.amp);
     if (u.uIntensity) gl.uniform1f(u.uIntensity, s.intensity);
+    if (u.uAccent) gl.uniform3f(u.uAccent, s.accent[0], s.accent[1], s.accent[2]);
   }
 
   dispose() {

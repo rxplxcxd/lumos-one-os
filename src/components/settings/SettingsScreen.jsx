@@ -1,7 +1,7 @@
 // iOS/Switch hybrid settings: section rail on the left, grouped lists on the right.
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Cpu, Palette, MonitorSmartphone, Volume2, Gauge, Wifi, Gamepad2, Vibrate, ScanFace, Cloud, RefreshCw, Code2, Info, UserRound } from 'lucide-react';
+import { Settings, Cpu, Palette, MonitorSmartphone, Volume2, Gauge, Wifi, Gamepad2, Vibrate, ScanFace, Cloud, RefreshCw, Code2, Info, UserRound, Image, Sparkles, Keyboard, Music, MoonStar, LayoutGrid, Bell } from 'lucide-react';
 import { Screen, Hint } from '@/components/ui/primitives.jsx';
 import { useTabs } from '@/hooks/useInputSystem.js';
 import { haptic } from '@/services/haptics.js';
@@ -10,16 +10,25 @@ import { SystemSection, AppearanceSection, DisplaySection, AudioSection, PowerSe
 import { NetworkSection, CloudSection, UpdatesSection, DeveloperSection, AboutSection, ProfileSection } from './ConnectSections.jsx';
 import { ControllersSection, HapticsSection } from './ControllerSections.jsx';
 import FaceIdSettings from './FaceIdSettings.jsx';
+import KeyboardSection from './KeyboardSection.jsx';
+import { LookSection, AnimationSection, SoundSection, ScreensaverSection, HomeSection, NotificationSection } from './MoreSections.jsx';
 
 export const SECTIONS = [
   { key: 'profile', label: 'Profil', icon: UserRound, bg: 'bg-[#5b6b8c]', C: ProfileSection },
   { key: 'system', label: 'System', icon: Cpu, bg: 'bg-[#6b7280]', C: SystemSection },
-  { key: 'appearance', label: 'Hintergrund & Stil', icon: Palette, bg: 'bg-[#7c6bb0]', C: AppearanceSection },
+  { key: 'look', label: 'Darstellung & Farben', icon: Palette, bg: 'bg-[#c2567b]', C: LookSection },
+  { key: 'appearance', label: 'Hintergrund', icon: Image, bg: 'bg-[#7c6bb0]', C: AppearanceSection },
+  { key: 'animations', label: 'Animationen', icon: Sparkles, bg: 'bg-[#8b5cf6]', C: AnimationSection },
+  { key: 'home', label: 'Startbildschirm', icon: LayoutGrid, bg: 'bg-[#5b6b8c]', C: HomeSection },
   { key: 'display', label: 'Display & TV-Docking', icon: MonitorSmartphone, bg: 'bg-[#3b82c4]', C: DisplaySection },
+  { key: 'screensaver', label: 'Bildschirmschoner & Standby', icon: MoonStar, bg: 'bg-[#3b5bc4]', C: ScreensaverSection },
   { key: 'audio', label: 'Audio', icon: Volume2, bg: 'bg-[#d0566b]', C: AudioSection },
+  { key: 'sounds', label: 'Systemklänge', icon: Music, bg: 'bg-[#e0627a]', C: SoundSection },
+  { key: 'notifications', label: 'Mitteilungen', icon: Bell, bg: 'bg-[#d04848]', C: NotificationSection },
   { key: 'power', label: 'Leistung & Energie', icon: Gauge, bg: 'bg-[#3f9c6d]', C: PowerSection },
   { key: 'network', label: 'Netzwerk & Bluetooth', icon: Wifi, bg: 'bg-[#2f7fe0]', C: NetworkSection },
   { key: 'controllers', label: 'Controller & Gyro', icon: Gamepad2, bg: 'bg-[#8a8f99]', C: ControllersSection },
+  { key: 'keyboard', label: 'Tastatur & Steuerung', icon: Keyboard, bg: 'bg-[#4b5563]', C: KeyboardSection },
   { key: 'haptics', label: 'Haptik', icon: Vibrate, bg: 'bg-[#c27b3a]', C: HapticsSection },
   { key: 'faceid', label: 'Face ID & Code', icon: ScanFace, bg: 'bg-[#3fa66b]', C: FaceIdSettings },
   { key: 'cloud', label: 'Cloud-Dienste', icon: Cloud, bg: 'bg-[#4a90d9]', C: CloudSection },
@@ -37,7 +46,7 @@ export default function SettingsScreen({ section = 'system' }) {
     haptic('nav.page');
   }, [cur]);
   return (
-    <Screen title="Einstellungen" icon={Settings} noPad hints={<><Hint k="lb">/ R Bereich</Hint><Hint k="a">Auswählen</Hint><Hint k="b">Zurück</Hint></>}>
+    <Screen title="Einstellungen" icon={Settings} noPad hints={<><Hint k="lb">Bereich</Hint><Hint k="a">Auswählen</Hint><Hint k="b">Zurück</Hint></>}>
       <div className="flex h-full">
         <aside className="w-[19rem] shrink-0 overflow-y-auto px-6 pb-16">
           {SECTIONS.map((s) => (

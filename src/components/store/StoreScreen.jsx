@@ -220,7 +220,7 @@ export default function StoreScreen({ app }) {
       }
       hints={
         <>
-          <Hint k="lb">/ R Kategorie</Hint>
+          <Hint k="lb">Kategorie</Hint>
           <Hint k="x">Suchen</Hint>
           <Hint k="a">Auswählen</Hint>
           <Hint k="b">Zurück</Hint>

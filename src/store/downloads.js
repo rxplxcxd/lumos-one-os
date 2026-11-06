@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { on, request } from '@/services/bridge.js';
 import { haptic } from '@/services/haptics.js';
 import { toast } from './ui.js';
+import { useSettings } from './settings.js';
 
 export const useDownloads = create(() => ({ jobs: {}, installed: {} }));
 const set = (fn) => useDownloads.setState(fn);
@@ -22,7 +23,7 @@ export function startDownloadFeeds() {
         return { jobs };
       });
       haptic('success');
-      toast({ title: j.op === 'install' ? 'Installiert' : 'Entfernt', body: m.name || j.id, icon: m.icon, kind: 'success' });
+      if (useSettings.getState().values.notifyDownloads) toast({ title: j.op === 'install' ? 'Installiert' : 'Entfernt', body: m.name || j.id, icon: m.icon, kind: 'success' });
       refreshInstalled();
     }),
     on('flatpak.error', (j) => {

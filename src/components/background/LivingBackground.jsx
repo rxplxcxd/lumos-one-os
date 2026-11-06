@@ -6,6 +6,7 @@ import { gyro } from '@/store/system.js';
 import { useUI } from '@/store/ui.js';
 import { useSettings } from '@/store/settings.js';
 import { idb } from '@/services/storage.js';
+import { UI_THEMES } from '@/lib/themes.js';
 
 export async function loadCustomSource() {
   const rec = await idb.get('bg.custom');
@@ -32,8 +33,15 @@ export default function LivingBackground() {
   const intensity = useSettings((s) => s.values.bgIntensity);
   const useGyro = useSettings((s) => s.values.bgGyro);
   const reduce = useSettings((s) => s.values.reduceMotion);
-  const live = useRef({ intensity, useGyro, reduce });
-  live.current = { intensity, useGyro, reduce };
+  const speed = useSettings((s) => s.values.bgSpeed);
+  const particles = useSettings((s) => s.values.bgParticles);
+  const uiTheme = useSettings((s) => s.values.uiTheme);
+  const live = useRef({ intensity, useGyro, reduce, speed, particles, accent: [0.85, 0.89, 1] });
+  live.current = { ...live.current, intensity, useGyro, reduce, speed, particles };
+  useEffect(() => {
+    const t = UI_THEMES.find((x) => x.key === uiTheme) || UI_THEMES[0];
+    live.current.accent = t.accent[2].split(' ').map((x) => Number(x) / 255);
+  }, [uiTheme]);
 
   useEffect(() => {
     let r;
@@ -107,7 +115,7 @@ export default function LivingBackground() {
 
     let raf;
     let last = performance.now();
-    const t0 = last;
+    let simTime = 0;
     let refreshBudget = 1000 / 60;
     let budgetSamples = [];
     const frame = (now) => {
@@ -119,11 +127,12 @@ export default function LivingBackground() {
         if (budgetSamples.length === 120) refreshBudget = budgetSamples.sort((a, b) => a - b)[60];
       } else r.adapt(ms, refreshBudget);
 
-      const { intensity: inten, useGyro: ug, reduce: rm } = live.current;
+      const { intensity: inten, useGyro: ug, reduce: rm, speed: sp = 1, particles: pc = 1, accent } = live.current;
       const motion = rm ? 0.25 : 1;
       // target tilt: gyro if fresh, otherwise pointer parallax + slow breathing
       const fresh = ug && now - gyro.t < 1500;
-      const idle = [Math.sin((now - t0) / 9000) * 0.12, Math.cos((now - t0) / 11000) * 0.1];
+      simTime += dt * sp * motion;
+      const idle = [Math.sin(simTime / 9) * 0.12, Math.cos(simTime / 11) * 0.1];
       const target = fresh
         ? [Math.max(-1, Math.min(1, gyro.roll / 25)), Math.max(-1, Math.min(1, gyro.pitch / 25))]
         : [st.pointerTilt[0] + idle[0], st.pointerTilt[1] + idle[1]];
@@ -141,7 +150,9 @@ export default function LivingBackground() {
       st.ripple[2] += dt;
       st.amp *= Math.exp(-dt * 0.9);
       r.render({
-        time: ((now - t0) / 1000) * motion,
+        time: simTime,
+        particles: pc,
+        accent,
         tilt: [st.tilt[0] * motion, st.tilt[1] * motion],
         flow: [st.flow[0] * motion, st.flow[1] * motion],
         ripple: st.ripple,

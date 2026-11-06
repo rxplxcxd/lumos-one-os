@@ -15,6 +15,11 @@
   --glass-border: rgba(255, 255, 255, 0.075);
   --glass-hi: rgba(255, 255, 255, 0.055);
   --lumen: 216 228 255;
+  --lumen-400: 169 194 255;
+  --lumen-500: 127 163 255;
+  --lumen-600: 91 132 240;
+  --glass-blur: 28px;
+  --night-tint: 0;
 }
 
 html,
@@ -50,15 +55,15 @@ textarea {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     box-shadow: inset 0 1px 0 0 var(--glass-hi), 0 24px 60px -28px rgba(0, 0, 0, 0.7);
-    -webkit-backdrop-filter: blur(28px) saturate(140%);
-    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   }
   .glass-strong {
     background: var(--glass-bg-strong);
     border: 1px solid var(--glass-border);
     box-shadow: inset 0 1px 0 0 var(--glass-hi), 0 30px 80px -30px rgba(0, 0, 0, 0.85);
-    -webkit-backdrop-filter: blur(40px) saturate(150%);
-    backdrop-filter: blur(40px) saturate(150%);
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.4)) saturate(150%);
+    backdrop-filter: blur(calc(var(--glass-blur) * 1.4)) saturate(150%);
   }
   .hairline {
     border-color: rgba(255, 255, 255, 0.06);
@@ -121,4 +126,30 @@ webview {
   display: flex;
   width: 100%;
   height: 100%;
+}
+
+/* accessibility & theme switches (set on <html>) */
+.reduce-transparency {
+  --glass-bg: rgba(20, 23, 29, 0.97);
+  --glass-bg-strong: rgba(16, 18, 23, 0.99);
+  --glass-blur: 0px;
+}
+.high-contrast {
+  --glass-border: rgba(255, 255, 255, 0.28);
+}
+.high-contrast .text-mist-400,
+.high-contrast .text-mist-500 {
+  color: #c9d0db;
+}
+.bold-text body {
+  font-weight: 500;
+}
+/* the focus halo replaces the static ring */
+.focus-halo .nav-focus:focus,
+.focus-halo .nav-focus:focus-visible {
+  box-shadow: none;
+}
+.focus-halo .row-focus:focus,
+.focus-halo .row-focus:focus-visible {
+  box-shadow: none;
 }
