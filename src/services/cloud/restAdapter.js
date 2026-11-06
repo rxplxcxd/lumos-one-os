@@ -122,4 +122,56 @@ export class RestAdapter {
   registerDevice(d) {
     return this.#fetch('/v1/devices', { method: 'POST', json: d });
   }
+
+  // ---------------------------------------------------------------- v1.1 social / media / manifests
+  async me() {
+    return (await this.#fetch('/v1/me')).user;
+  }
+  listFriends() {
+    return this.#fetch('/v1/friends');
+  }
+  addFriend(code) {
+    return this.#fetch('/v1/friends', { method: 'POST', json: { code } });
+  }
+  acceptFriend(id) {
+    return this.#fetch(`/v1/friends/${id}/accept`, { method: 'POST', json: {} });
+  }
+  removeFriend(id) {
+    return this.#fetch(`/v1/friends/${id}`, { method: 'DELETE' });
+  }
+  async listMessages(friendId, after = 0) {
+    return (await this.#fetch(`/v1/messages/${friendId}?after=${after}`)).map((m) => ({ ...m, mine: m.from !== friendId }));
+  }
+  async sendMessage(friendId, { text, attachment }) {
+    return { ...(await this.#fetch(`/v1/messages/${friendId}`, { method: 'POST', json: { text, attachment } })), mine: true };
+  }
+  async uploadMedia(blob, title = 'Clip') {
+    return this.#fetch('/v1/media', { method: 'PUT', body: blob, headers: { 'content-type': blob.type || 'application/octet-stream', 'x-lumos-title': encodeURIComponent(title) } });
+  }
+  async fetchMedia(id) {
+    const res = await this.#fetch(`/v1/media/${id}`, { raw: true });
+    return res.blob();
+  }
+  putManifest(id, files) {
+    return this.#fetch(`/v1/saves/${encodeURIComponent(id)}/manifest`, { method: 'PUT', json: { files } });
+  }
+  async getManifest(id) {
+    return (await this.#fetch(`/v1/saves/${encodeURIComponent(id)}/manifest`)).files;
+  }
+  searchUsers(q) {
+    return this.#fetch(`/v1/users/search?q=${encodeURIComponent(q)}`);
+  }
+  // v1.1 presence / typing (polled by cloudService)
+  setPresence(p) {
+    return this.#fetch('/v1/presence', { method: 'PUT', json: p });
+  }
+  listPresence() {
+    return this.#fetch('/v1/presence');
+  }
+  sendTyping(friendId) {
+    return this.#fetch(`/v1/typing/${friendId}`, { method: 'POST', json: {} });
+  }
+  async isTyping(friendId) {
+    return (await this.#fetch(`/v1/typing/${friendId}`)).typing;
+  }
 }

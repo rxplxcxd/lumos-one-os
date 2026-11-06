@@ -23,7 +23,18 @@ const get = () => useUI.getState();
 
 export const current = () => get().stack.at(-1);
 
-export function open(screen, params = {}) {
+export async function open(screen, params = {}) {
+  // child / guest profiles: restricted screens need the parental PIN
+  const { isRestrictedScreen, hasParentalPin, checkParentalPin } = await import('./parental.js');
+  if (isRestrictedScreen(screen)) {
+    if (!hasParentalPin()) {
+      haptic('error');
+      toast({ title: 'Nicht verfügbar', body: 'Dieser Bereich ist für dieses Profil gesperrt', kind: 'error' });
+      return;
+    }
+    const { askPin } = await import('@/components/shell/PinPrompt.jsx');
+    if (!(await askPin({ title: 'Eltern-PIN', sub: 'Dieser Bereich ist für dieses Profil gesperrt', check: checkParentalPin }))) return;
+  }
   const top = current();
   if (top.screen === screen && JSON.stringify(top.params) === JSON.stringify(params)) return;
   haptic('open');
@@ -57,6 +68,8 @@ export const setLocked = (v) => set({ locked: v });
 export const bumpImpulse = () => set({ impulse: get().impulse + 1 });
 
 let toastSeq = 1;
+export const dismissToast = (id) => set({ toasts: get().toasts.filter((x) => x.id !== id) });
+
 export function toast(t) {
   const id = toastSeq++;
   set({ toasts: [...get().toasts, { id, kind: 'info', ...t }].slice(-4) });

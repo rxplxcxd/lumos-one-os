@@ -2,7 +2,7 @@
 // dock, live downloads and the widget board (Y = edit, X = add).
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
-import { Store, Library, StickyNote, Calculator, KeyRound, Settings, Cloud, RefreshCw, UserRound, FolderOpen, Gamepad2, Plus, Minus, Maximize2, Globe, Play } from 'lucide-react';
+import { Store, Library, StickyNote, Calculator, KeyRound, Settings, Cloud, RefreshCw, UserRound, FolderOpen, Gamepad2, Plus, Minus, Maximize2, Globe, Play, MessagesSquare, Clapperboard, SquareTerminal } from 'lucide-react';
 import { useLibrary, artFor, launch } from '@/store/library.js';
 import { open, useUI, setEditWidgets } from '@/store/ui.js';
 import { useWidgets, addWidget, removeWidget, cycleWidgetSize, moveWidget, WIDGET_TYPES } from '@/store/widgets.js';
@@ -117,6 +117,9 @@ const DOCK = [
   { key: 'avatar', label: 'Profil & Avatar', icon: UserRound },
   { key: 'files', label: 'Dateien', icon: FolderOpen },
   { key: 'cloud', label: 'Lumos Cloud', icon: Cloud },
+  { key: 'social', label: 'Freunde & Chat', icon: MessagesSquare },
+  { key: 'captures', label: 'Aufnahmen', icon: Clapperboard },
+  { key: 'terminal', label: 'Terminal', icon: SquareTerminal },
   { key: 'updater', label: 'Sync & Update', icon: RefreshCw },
   { key: 'settings', label: 'Einstellungen', icon: Settings },
 ];
@@ -140,7 +143,7 @@ function DockButton({ d, i = 0 }) {
         initial={{ scale: 0.4, opacity: 0, y: 20 }}
         animate={{ scale: f ? 1.14 : 1, opacity: 1, y: f ? -3 : 0 }}
         transition={{ ...spring.bouncy, delay: entered ? 0 : 0.15 + i * 0.03 }}
-        className="nav-focus glass flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full"
+        className="dock-icon nav-focus glass relative flex h-[3.6rem] w-[3.6rem] items-center justify-center rounded-full"
       >
         <d.icon className="h-[1.35rem] w-[1.35rem]" strokeWidth={1.8} />
       </motion.button>
@@ -300,7 +303,7 @@ export default function HomeScreen() {
       </div>
 
       {/* dock */}
-      <nav className="relative mt-2 flex h-[6rem] justify-center gap-[1.1rem]" onFocus={() => setHeroFocus(false)}>
+      <nav data-static="" className="relative mt-2 flex h-[6rem] justify-center gap-[1.1rem]" onFocus={() => setHeroFocus(false)}>
         {DOCK.map((d, i) => (
           <DockButton key={d.key} d={d} i={i} />
         ))}

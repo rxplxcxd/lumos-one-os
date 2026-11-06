@@ -121,8 +121,21 @@ export function ScreensaverSection() {
       <ListGroup title="Standby">
         <Seg icon={Power} label="Automatisch in den Ruhezustand" value={v.autoSleepMin} onChange={(x) => setSetting('autoSleepMin', x)} options={[0, 5, 10, 15, 30, 60].map((m) => ({ value: m, label: m ? `${m} min` : 'Nie' }))} />
       </ListGroup>
-      <ListGroup title="Nachtmodus">
-        <SliderRow icon={Moon} iconBg="bg-[#c27b3a]" label="Wärmere Farben" value={v.nightShift} min={0} max={1} step={0.05} format={(x) => (x ? `${Math.round(x * 100)}%` : 'Aus')} onChange={(x) => setSetting('nightShift', x)} />
+      <ListGroup title="Nachtmodus" footer={v.nightShiftMode === 'auto' ? `Folgt Sonnenuntergang und -aufgang am Wetter-Standort (${v.weatherLocation?.name || '—'}).` : 'Wärmere Farben reduzieren Blaulicht am Abend.'}>
+        <Seg icon={Moon} label="Aktivieren" value={v.nightShiftMode} onChange={(x) => setSetting('nightShiftMode', x)} options={[{ value: 'off', label: 'Aus' }, { value: 'manual', label: 'Immer' }, { value: 'auto', label: 'Sonnenuntergang' }, { value: 'schedule', label: 'Zeitplan' }]} />
+        {v.nightShiftMode === 'schedule' && (
+          <div className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-3 text-[0.88rem]">
+            <span className="flex-1">Von / Bis</span>
+            <input data-nav="" type="time" value={v.nightShiftFrom} onChange={(e) => setSetting('nightShiftFrom', e.target.value)} className="nav-focus rounded-lg bg-white/10 px-2 py-1" />
+            <input data-nav="" type="time" value={v.nightShiftTo} onChange={(e) => setSetting('nightShiftTo', e.target.value)} className="nav-focus rounded-lg bg-white/10 px-2 py-1" />
+          </div>
+        )}
+        <SliderRow icon={Moon} iconBg="bg-[#c27b3a]" label="Stärke" value={v.nightShift} min={0.1} max={1} step={0.05} format={(x) => `${Math.round(x * 100)}%`} onChange={(x) => setSetting('nightShift', x)} />
+      </ListGroup>
+      <ListGroup title="OLED-Schutz" footer="Pixel-Shift verschiebt die Oberfläche alle 3 Minuten um 1 px; statische Elemente (Statusleiste, Dock) werden nach 2 Minuten ohne Eingabe gedimmt.">
+        <ToggleRow icon={Move3d} iconBg="bg-[#3b5bc4]" label="Pixel-Shift" checked={v.pixelShift} onChange={(x) => setSetting('pixelShift', x)} />
+        <ToggleRow icon={Contrast} iconBg="bg-[#4b5563]" label="Statische Elemente dimmen" checked={v.dimStatic} onChange={(x) => setSetting('dimStatic', x)} />
+        <ToggleRow icon={Sparkles} iconBg="bg-[#c27b3a]" label="Adaptive Helligkeit (Umgebungslicht)" checked={v.autoBrightness} onChange={(x) => setSetting('autoBrightness', x)} />
       </ListGroup>
     </>
   );

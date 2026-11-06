@@ -3,12 +3,13 @@
 // semantic actions, with configurable key-repeat for held directions.
 import { useEffect } from 'react';
 import { move, activate, ensureFocus, currentFocus } from '@/lib/spatialNav.js';
-import { back, goHome, toggleDevPanel, toggleQuickMenu, bumpImpulse, useUI } from '@/store/ui.js';
+import { back, goHome, toggleDevPanel, toggleQuickMenu, bumpImpulse, useUI, open } from '@/store/ui.js';
 import { on } from '@/services/bridge.js';
 import { useSettings } from '@/store/settings.js';
 import { setLastInput } from '@/components/shell/OnScreenKeyboard.jsx';
 import { resolveBindings, reverseBindings } from '@/lib/keybindings.js';
 import { padFamily } from '@/lib/controllers.js';
+import { moveCursor, cursorActive, cursorClick, analogScroll } from '@/lib/cursor.js';
 
 export function emitAction(action) {
   window.dispatchEvent(new CustomEvent('lumos:action', { detail: { action } }));
@@ -48,7 +49,7 @@ export function dispatch(action) {
       move(action);
       break;
     case 'a':
-      activate();
+      if (!(cursorActive() && cursorClick())) activate();
       break;
     case 'b':
       // like the Switch: A starts editing a field (on-screen keyboard), B closes the keyboard,
@@ -63,6 +64,18 @@ export function dispatch(action) {
       goHome();
       break;
     case 'start':
+      // Select + Start → task manager (like Ctrl+Alt+Del)
+      if (performance.now() - (dispatch.selectAt || 0) < 600) {
+        dispatch.selectAt = 0;
+        toggleQuickMenu(false);
+        open('taskmanager');
+        break;
+      }
+      toggleQuickMenu();
+      break;
+    case 'select':
+      dispatch.selectAt = performance.now();
+      break;
     case 'capture':
       toggleQuickMenu();
       break;
@@ -159,7 +172,7 @@ export function useInputSystem() {
     };
     window.addEventListener('keydown', onKeyCapture, true);
     const onKey = (e) => {
-      const typing = e.target.matches?.('input, textarea, [contenteditable="true"]');
+      const typing = e.target.matches?.('input, textarea, [contenteditable="true"], [data-raw-keys]');
       if ((e.ctrlKey && e.shiftKey && e.code === 'KeyD') || e.key === 'F12') {
         if (useSettings.getState().values.devPanelShortcut) {
           e.preventDefault();
@@ -206,8 +219,28 @@ export function useInputSystem() {
         return;
       }
       const pressed = new Set();
+      const { stickCursor: cursorPref, cursorSpeed, scrollSpeed, stickDeadzone } = useSettings.getState().values;
+      const stickCursor = cursorPref && useUI.getState().stack.at(-1)?.screen !== 'game'; // games get the raw stick
+      const dt = Math.min(0.05, (t - (poll.last || t)) / 1000);
+      poll.last = t;
+      const dz = Math.max(0.12, stickDeadzone || 0);
+      const curve = (v) => (Math.abs(v) < dz ? 0 : Math.sign(v) * Math.pow((Math.abs(v) - dz) / (1 - dz), 1.7));
       for (const p of pads) {
+        const analog = p.mapping === 'standard' || !padMappings?.[p.id];
+        if (analog && p.axes.length >= 2) {
+          const [lx = 0, ly = 0, rx = 0, ry = 0] = p.axes;
+          const cx = curve(lx);
+          const cy = curve(ly);
+          if (stickCursor && (cx || cy)) moveCursor(cx * 1100 * cursorSpeed * dt, cy * 1100 * cursorSpeed * dt);
+          if (p.mapping === 'standard' && p.axes.length >= 4) {
+            const sx = curve(rx);
+            const sy = curve(ry);
+            if (sx || sy) analogScroll(sx * 1500 * scrollSpeed * dt, sy * 1500 * scrollSpeed * dt);
+          }
+        }
         const set = readPad(p, padMappings);
+        if (stickCursor) ['ls_up', 'ls_down', 'ls_left', 'ls_right'].forEach((a) => set.delete(a));
+        if (p.mapping === 'standard') ['rs_up', 'rs_down', 'rs_left', 'rs_right'].forEach((a) => set.delete(a)); // analog scroll above
         if (set.size) {
           const fam = padFamily(p.id);
           if (useUI.getState().padFamily !== fam || useUI.getState().inputSource !== 'pad') useUI.setState({ padFamily: fam, inputSource: 'pad' });

@@ -132,10 +132,11 @@ export default function FocusLayer() {
   const focusStyle = useSettings((s) => s.values.focusStyle);
   const ripples = useSettings((s) => s.values.pressRipples);
   const reduce = useSettings((s) => s.values.reduceMotion);
+  const lowPower = useSettings((s) => s.values.lowPower);
   return (
     <>
       {focusStyle === 'halo' && <Halo />}
-      {ripples && !reduce && <Ripples />}
+      {ripples && !reduce && !lowPower && <Ripples />}
     </>
   );
 }

@@ -121,7 +121,26 @@ class SavesModule(Module):
             self.hash_cache = {}
 
     def methods(self):
-        return {"saves.list": self.list, "saves.pack": self.pack, "saves.restore": self.restore}
+        return {"saves.list": self.list, "saves.pack": self.pack, "saves.restore": self.restore, "saves.manifest": self.manifest}
+
+    async def manifest(self, p):
+        """File list (path, size, mtime, sha256) for the cloud conflict diff viewer."""
+        if self.cfg.simulate:
+            return self.ctx["sim"].save_manifest(p.get("id"))
+        sets = self.discover()
+        if p.get("id") not in sets:
+            raise RpcError("Spielstand nicht gefunden", "ENOENT")
+
+        def work():
+            paths = sets[p["id"]]["paths"]
+            out = []
+            for base, f in _iter_files(paths):
+                st = f.stat()
+                h = hashlib.sha256(f.read_bytes()).hexdigest() if st.st_size < 64 * 1024 * 1024 else None
+                out.append({"path": f"{base.name}/{f.relative_to(base).as_posix()}", "size": st.st_size, "mtime": int(st.st_mtime * 1000), "sha256": h})
+            return out[:5000]
+
+        return await asyncio.get_running_loop().run_in_executor(None, work)
 
     def discover(self) -> dict[str, dict]:
         sets = {}

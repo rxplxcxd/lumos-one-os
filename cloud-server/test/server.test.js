@@ -76,3 +76,120 @@ test('auth, documents with optimistic concurrency, saves, devices', async () => 
     server.close();
   }
 });
+
+test('v1.1: friend codes, friendships, chat, media and save manifests', async () => {
+  const { server, url, dir } = await start();
+  try {
+    const a = new RestAdapter(url);
+    const b = new RestAdapter(url);
+    await a.signUp({ email: 'anna@example.com', password: 'correct horse', displayName: 'Anna' });
+    await b.signUp({ email: 'ben@example.com', password: 'battery staple', displayName: 'Ben' });
+    const meA = await a.me();
+    const meB = await b.me();
+    assert.match(meA.friendCode, /^[A-HJ-NP-Z2-9]{8}$/);
+    assert.notEqual(meA.friendCode, meB.friendCode);
+
+    // request → pending on both sides; strangers cannot chat
+    await assert.rejects(a.addFriend('NOPE-NOPE'), (e) => e.status === 404);
+    await assert.rejects(a.addFriend(meA.friendCode), (e) => e.status === 400);
+    await assert.rejects(a.sendMessage(meB.id, { text: 'hi' }), (e) => e.status === 403);
+    await a.addFriend(`${meB.friendCode.slice(0, 4).toLowerCase()}-${meB.friendCode.slice(4)}`); // tolerant input
+    assert.equal((await a.listFriends())[0].status, 'outgoing');
+    const pendB = await b.listFriends();
+    assert.equal(pendB.length, 1);
+    assert.equal(pendB[0].status, 'incoming');
+    await b.acceptFriend(meA.id);
+    assert.equal((await a.listFriends())[0].status, 'accepted');
+
+    // chat with incremental polling
+    const m1 = await a.sendMessage(meB.id, { text: 'Lust auf eine Runde?' });
+    assert.equal(m1.mine, true);
+    const inbox = await b.listMessages(meA.id);
+    assert.equal(inbox.length, 1);
+    assert.equal(inbox[0].text, 'Lust auf eine Runde?');
+    assert.equal(inbox[0].mine, false);
+    const m2 = await b.sendMessage(meA.id, { text: 'Klar!' });
+    assert.equal((await a.listMessages(meB.id, m1.t)).length, 1);
+    assert.ok(m2.t >= m1.t);
+
+    // media upload/download, shared via chat attachment
+    const clip = new Blob([crypto.randomBytes(5000)], { type: 'video/webm' });
+    const media = await a.uploadMedia(clip, 'Highlight');
+    assert.ok(media.id);
+    await a.sendMessage(meB.id, { text: '', attachment: { kind: 'clip', media: media.id, title: 'Highlight' } });
+    const got = await b.fetchMedia(media.id);
+    assert.equal(got.size, 5000);
+    const c = new RestAdapter(url);
+    await c.signUp({ email: 'carl@example.com', password: 'secret pass', displayName: 'Carl' });
+    await assert.rejects(c.fetchMedia(media.id), (e) => e.status === 403 || e.status === 404);
+
+    // save manifest for the diff viewer
+    const bytes = crypto.randomBytes(1000);
+    await a.uploadSave({ id: 'orbit', title: 'Lumos Orbit', sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes });
+    await a.putManifest('orbit', [{ path: 'slot1.sav', size: 1000, mtime: 1, sha256: 'ab' }]);
+    assert.equal((await a.getManifest('orbit'))[0].path, 'slot1.sav');
+
+    // unfriend ends the conversation
+    await a.removeFriend(meB.id);
+    assert.equal((await b.listFriends()).length, 0);
+    await assert.rejects(b.sendMessage(meA.id, { text: 'hallo?' }), (e) => e.status === 403);
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('social hub: username search, presence, typing and read receipts', async () => {
+  const { server, url, dir } = await start();
+  try {
+    const a = new RestAdapter(url);
+    const b = new RestAdapter(url);
+    const c = new RestAdapter(url);
+    await a.signUp({ email: 'anna@example.com', password: 'correct horse', displayName: 'Anna' });
+    await b.signUp({ email: 'ben@example.com', password: 'battery staple', displayName: 'Benedikt' });
+    await c.signUp({ email: 'carl@example.com', password: 'secret pass', displayName: 'Carl' });
+    const [meA, meB, meC] = [await a.me(), await b.me(), await c.me()];
+
+    // username search: min. 3 chars, case-insensitive, never returns yourself or e-mail addresses
+    await assert.rejects(a.searchUsers('be'), (e) => e.status === 400);
+    const hits = await a.searchUsers('BENE');
+    assert.equal(hits.length, 1);
+    assert.deepEqual(Object.keys(hits[0]).sort(), ['code', 'friend', 'id', 'name']);
+    assert.equal(hits[0].friend, false);
+    assert.equal((await a.searchUsers('anna')).length, 0);
+
+    await a.addFriend(meB.friendCode);
+    await b.acceptFriend(meA.id);
+    assert.equal((await a.searchUsers('bene'))[0].friend, true);
+
+    // presence: only friends see it, validated and trimmed
+    await b.setPresence({ status: 'busy', game: 'Lumos Orbit', since: Date.now() - 60000, party: { size: 2, max: 4 }, cover: null });
+    const pres = await a.listPresence();
+    assert.equal(pres[meB.id].status, 'busy');
+    assert.equal(pres[meB.id].game, 'Lumos Orbit');
+    assert.deepEqual(pres[meB.id].party, { size: 2, max: 4 });
+    assert.equal(Object.keys(await c.listPresence()).length, 0);
+    await b.setPresence({ status: 'hacker<script>', game: 'x'.repeat(500) });
+    const p2 = (await a.listPresence())[meB.id];
+    assert.equal(p2.status, 'online');
+    assert.equal(p2.game.length, 120);
+    assert.equal((await c.listPresence())[meA.id], undefined);
+
+    // typing is ephemeral and only between friends
+    assert.equal(await a.isTyping(meB.id), false);
+    await b.sendTyping(meA.id);
+    assert.equal(await a.isTyping(meB.id), true);
+    assert.equal(await b.isTyping(meA.id), false);
+    await assert.rejects(c.sendTyping(meA.id), (e) => e.status === 403);
+
+    // read receipts: sender sees `read` after the recipient opened the conversation
+    const m = await a.sendMessage(meB.id, { text: 'hi' });
+    assert.equal((await a.listMessages(meB.id))[0].read, false);
+    await b.listMessages(meA.id);
+    assert.equal((await a.listMessages(meB.id))[0].read, true);
+    assert.ok(meC.id);
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

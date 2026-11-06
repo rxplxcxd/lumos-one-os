@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { hashPassword, verifyPassword, signJwt, verifyJwt, newRefreshToken, sha256 } from './auth.js';
 import { Store } from './store.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const ACCESS_TTL = 15 * 60;
 const REFRESH_TTL = 30 * 24 * 3600 * 1000;
 
@@ -57,7 +57,26 @@ export function createServer({ dataDir = process.env.LUMOS_CLOUD_DATA || path.jo
     hits.set(k, h);
   };
 
-  const publicUser = (u) => ({ id: u.id, email: u.email, displayName: u.displayName });
+  const presence = new Map();
+  const typing = new Map();
+  const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const newCode = () => {
+    let c;
+    do c = Array.from(crypto.randomBytes(8), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+    while (db.codes[c]);
+    return c;
+  };
+  const ensureCode = (u) => {
+    if (!u.friendCode) {
+      u.friendCode = newCode();
+      db.codes[u.friendCode] = u.id;
+    }
+    return u.friendCode;
+  };
+  const publicUser = (u) => ({ id: u.id, email: u.email, displayName: u.displayName, friendCode: ensureCode(u) });
+  const pairKey = (a, b) => [a, b].sort().join(':');
+  const friendship = (a, b) => db.friends[pairKey(a, b)];
+  const areFriends = (a, b) => friendship(a, b)?.status === 'accepted';
 
   const issue = (u) => {
     const refreshToken = newRefreshToken();
@@ -242,6 +261,143 @@ export function createServer({ dataDir = process.env.LUMOS_CLOUD_DATA || path.jo
       return reply(201, e);
     }],
 
+
+    // ---------------------------------------------------------------- v1.1 social: friends & chat
+    ['GET', /^\/v1\/friends$/, async (req) => {
+      const u = auth(req);
+      return Object.values(db.friends)
+        .filter((f) => f.a === u.id || f.b === u.id)
+        .map((f) => {
+          const otherId = f.a === u.id ? f.b : f.a;
+          const o = db.users[otherId];
+          const unread = Object.values(db.messages[pairKey(u.id, otherId)] || {}).filter((m) => m.to === u.id && !m.read).length;
+          return { id: otherId, name: o?.displayName || '?', code: o ? ensureCode(o) : null, status: f.status === 'accepted' ? 'accepted' : f.from === u.id ? 'outgoing' : 'incoming', since: f.t, unread };
+        });
+    }],
+    ['POST', /^\/v1\/friends$/, async (req, _m, ip) => {
+      rateLimit(ip, 'friend', 30);
+      const u = auth(req);
+      const { code } = await json(req);
+      const target = db.users[db.codes[String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')]];
+      if (!target) throw new HttpError(404, 'Kein Konto mit diesem Freundescode');
+      if (target.id === u.id) throw new HttpError(400, 'Das ist dein eigener Code');
+      const k = pairKey(u.id, target.id);
+      const cur = db.friends[k];
+      if (cur?.status === 'accepted') return { status: 'accepted', id: target.id, name: target.displayName };
+      if (cur && cur.from === target.id) cur.status = 'accepted'; // both sent a request → friends
+      else db.friends[k] = { a: u.id, b: target.id, from: u.id, status: 'pending', t: Date.now() };
+      await store.save();
+      return reply(201, { status: db.friends[k].status === 'accepted' ? 'accepted' : 'outgoing', id: target.id, name: target.displayName });
+    }],
+    ['POST', /^\/v1\/friends\/([\w-]{8,64})\/accept$/, async (req, m) => {
+      const u = auth(req);
+      const f = friendship(u.id, m[1]);
+      if (!f || f.from === u.id) throw new HttpError(404, 'Keine offene Anfrage');
+      f.status = 'accepted';
+      await store.save();
+      return { status: 'accepted' };
+    }],
+    ['DELETE', /^\/v1\/friends\/([\w-]{8,64})$/, async (req, m) => {
+      const u = auth(req);
+      delete db.friends[pairKey(u.id, m[1])];
+      await store.save();
+      return reply(204, null);
+    }],
+    ['GET', /^\/v1\/messages\/([\w-]{8,64})$/, async (req, m, _ip) => {
+      const u = auth(req);
+      if (!areFriends(u.id, m[1])) throw new HttpError(403, 'Nur mit bestätigten Freunden');
+      const after = Number(new URL(req.url, 'http://x').searchParams.get('after') || 0);
+      const conv = db.messages[pairKey(u.id, m[1])] || {};
+      let changed = false;
+      const out = Object.values(conv).filter((x) => x.t > after).sort((a, b) => a.t - b.t).slice(-200);
+      for (const x of out) if (x.to === u.id && !x.read) (x.read = true), (changed = true);
+      if (changed) await store.save();
+      return out;
+    }],
+    ['POST', /^\/v1\/messages\/([\w-]{8,64})$/, async (req, m, ip) => {
+      rateLimit(ip, 'msg', 120);
+      const u = auth(req);
+      if (!areFriends(u.id, m[1])) throw new HttpError(403, 'Nur mit bestätigten Freunden');
+      const { text, attachment } = await json(req);
+      const body = String(text || '').slice(0, 4000);
+      if (!body.trim() && !attachment) throw new HttpError(400, 'Leere Nachricht');
+      const att = attachment && db.media[attachment.mediaId] ? { mediaId: attachment.mediaId, kind: db.media[attachment.mediaId].kind, name: db.media[attachment.mediaId].name, size: db.media[attachment.mediaId].size } : null;
+      const msg = { id: crypto.randomUUID(), from: u.id, to: m[1], text: body, attachment: att, t: Date.now(), read: false };
+      (db.messages[pairKey(u.id, m[1])] ||= {})[msg.id] = msg;
+      await store.save();
+      return reply(201, msg);
+    }],
+    // v1.1 username search (prefix match on display name, needs 3+ chars, max 10 hits)
+    ['GET', /^\/v1\/users\/search$/, async (req, _m, ip) => {
+      rateLimit(ip, 'usersearch', 60);
+      const u = auth(req);
+      const q = String(new URL(req.url, 'http://x').searchParams.get('q') || '').trim().toLowerCase();
+      if (q.length < 3) throw new HttpError(400, 'Mindestens 3 Zeichen');
+      return Object.values(db.users)
+        .filter((x) => x.id !== u.id && (x.displayName || '').toLowerCase().includes(q))
+        .slice(0, 10)
+        .map((x) => ({ id: x.id, name: x.displayName, code: ensureCode(x), friend: areFriends(u.id, x.id) }));
+    }],
+    // v1.1 rich presence + typing indicators (ephemeral, memory only)
+    ['PUT', /^\/v1\/presence$/, async (req) => {
+      const u = auth(req);
+      const b = await json(req);
+      const status = ['online', 'away', 'busy', 'offline'].includes(b.status) ? b.status : 'online';
+      const str = (x, n) => (x == null ? null : String(x).slice(0, n));
+      presence.set(u.id, { status, game: str(b.game, 120), cover: str(b.cover, 300), since: Number(b.since) || null, party: b.party && Number(b.party.max) ? { size: Math.min(99, Number(b.party.size) || 1), max: Math.min(99, Number(b.party.max)) } : null, updatedAt: Date.now() });
+      return { ok: true };
+    }],
+    ['GET', /^\/v1\/presence$/, async (req) => {
+      const u = auth(req);
+      const out = {};
+      for (const f of Object.values(db.friends)) {
+        if (f.status !== 'accepted' || (f.a !== u.id && f.b !== u.id)) continue;
+        const id = f.a === u.id ? f.b : f.a;
+        const p = presence.get(id);
+        const stale = !p || Date.now() - p.updatedAt > 150000; // 2.5 min without heartbeat = offline
+        out[id] = stale ? { status: 'offline', lastSeen: p?.updatedAt || db.users[id]?.lastSeen || null } : p;
+      }
+      return out;
+    }],
+    ['POST', /^\/v1\/typing\/([\w-]{8,64})$/, async (req, m) => {
+      const u = auth(req);
+      if (!areFriends(u.id, m[1])) throw new HttpError(403, 'Nur mit bestätigten Freunden');
+      typing.set(`${u.id}>${m[1]}`, Date.now());
+      return { ok: true };
+    }],
+    ['GET', /^\/v1\/typing\/([\w-]{8,64})$/, async (req, m) => {
+      const u = auth(req);
+      return { typing: Date.now() - (typing.get(`${m[1]}>${u.id}`) || 0) < 5000 };
+    }],
+    // media (shared clips/screenshots): uploader + their friends may read
+    ['PUT', /^\/v1\/media$/, async (req) => {
+      const u = auth(req);
+      const body = await readBody(req, maxSaveMb * 1024 * 1024);
+      const id = crypto.randomUUID();
+      const kind = String(req.headers['content-type'] || 'application/octet-stream').slice(0, 60);
+      fs.writeFileSync(store.mediaPath(id), body);
+      db.media[id] = { id, owner: u.id, kind, size: body.length, name: decodeURIComponent(String(req.headers['x-lumos-title'] || 'Clip')).slice(0, 120), t: Date.now() };
+      await store.save();
+      return reply(201, db.media[id]);
+    }],
+    ['GET', /^\/v1\/media\/([\w-]{36})$/, async (req, m, _ip, res) => {
+      const u = auth(req);
+      const meta = db.media[m[1]];
+      if (!meta || (meta.owner !== u.id && !areFriends(u.id, meta.owner))) throw new HttpError(404, 'Nicht gefunden');
+      res.writeHead(200, { 'content-type': meta.kind, 'content-length': meta.size });
+      fs.createReadStream(store.mediaPath(m[1])).pipe(res);
+      return undefined;
+    }],
+    // save manifests (file list) for the conflict diff viewer
+    ['PUT', /^\/v1\/saves\/([\w.-]{1,96})\/manifest$/, async (req, m) => {
+      const u = auth(req);
+      const { files } = await json(req);
+      if (!Array.isArray(files)) throw new HttpError(400, 'files[] erwartet');
+      (db.manifests[u.id] ||= {})[m[1]] = files.slice(0, 5000).map((f) => ({ path: String(f.path).slice(0, 300), size: Number(f.size) || 0, mtime: Number(f.mtime) || 0, sha256: f.sha256 ? String(f.sha256).slice(0, 64) : undefined }));
+      await store.save();
+      return { ok: true };
+    }],
+    ['GET', /^\/v1\/saves\/([\w.-]{1,96})\/manifest$/, async (req, m) => ({ files: db.manifests[auth(req).id]?.[m[1]] || [] })],
     ['GET', /^\/v1\/devices$/, async (req) => Object.values(db.devices[auth(req).id] || {})],
     ['POST', /^\/v1\/devices$/, async (req) => {
       const u = auth(req);

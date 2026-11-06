@@ -2,6 +2,7 @@
 // activated with A or tapped; writes into the target through the native value setter so React
 // onChange handlers fire normally.
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Delete, ArrowBigUp, CornerDownLeft, ChevronDown, Space } from 'lucide-react';
 import { haptic } from '@/services/haptics.js';
@@ -113,7 +114,8 @@ export default function OnScreenKeyboard() {
   };
 
   const rows = sym ? SYMBOLS : LETTERS;
-  return (
+  // rendered into <body>: never affected by transformed/filtered ancestors, always centred
+  return createPortal(
     <AnimatePresence>
       {target && (
         // centring lives on a static wrapper: framer-motion owns `transform` on the animated panel
@@ -122,6 +124,7 @@ export default function OnScreenKeyboard() {
           data-osk=""
           data-nav-scope="85"
           className="glass-strong pointer-events-auto w-[62rem] max-w-full rounded-[1.8rem] p-3"
+          style={{ maxWidth: 'calc(100vw - 2rem)' }}
           initial={{ y: 260, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 260, opacity: 0 }}
@@ -131,7 +134,7 @@ export default function OnScreenKeyboard() {
           {rows.map((r, ri) => (
             <div key={ri} className="mb-1.5 flex justify-center gap-1.5">
               {r.map((k, ki) => (
-                <button key={k + ki} ref={ri === 1 && ki === 0 ? firstKey : undefined} data-nav="" data-nav-haptic="none" onClick={() => press(k)} className="nav-focus h-12 w-[4.9rem] rounded-xl bg-white/[0.08] text-[1.05rem] font-medium">
+                <button key={k + ki} ref={ri === 1 && ki === 0 ? firstKey : undefined} data-nav="" data-nav-haptic="none" onClick={() => press(k)} className="nav-focus h-12 min-w-0 flex-1 basis-[4.9rem] rounded-xl bg-white/[0.08] text-[1.05rem] font-medium">
                   {shift && !sym ? k.toUpperCase() : k}
                 </button>
               ))}
@@ -148,6 +151,7 @@ export default function OnScreenKeyboard() {
         </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

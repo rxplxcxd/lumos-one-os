@@ -195,7 +195,7 @@ function Glasses({ a }) {
   );
 }
 
-function Accessory({ a }) {
+export function Accessory({ a }) {
   if (a.accessory === 'headphones')
     return (
       <group position={[0, 0.15, 0]}>
@@ -224,6 +224,94 @@ function Accessory({ a }) {
         </mesh>
       </group>
     );
+  if (a.accessory === 'crown')
+    return (
+      <group position={[0, 0.88, 0]}>
+        <mesh>
+          <cylinderGeometry args={[0.42, 0.46, 0.22, 8, 1, true]} />
+          <M color="#e6b94a" metal={0.85} rough={0.25} side={2} />
+        </mesh>
+        {Array.from({ length: 8 }, (_, i) => (
+          <mesh key={i} position={[Math.sin((i / 8) * Math.PI * 2) * 0.43, 0.2, Math.cos((i / 8) * Math.PI * 2) * 0.43]}>
+            <coneGeometry args={[0.07, 0.2, 4]} />
+            <M color="#e6b94a" metal={0.85} rough={0.25} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.02, 0.45]}>
+          <sphereGeometry args={[0.06, 16, 16]} />
+          <M color="#c22a4a" metal={0.2} rough={0.1} />
+        </mesh>
+      </group>
+    );
+  if (a.accessory === 'santa')
+    return (
+      <group position={[0, 0.74, 0]}>
+        <mesh position={[0, 0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.8, 0.14, 16, 48]} />
+          <M color="#f4f4f4" rough={1} />
+        </mesh>
+        <mesh position={[0.15, 0.55, -0.05]} rotation={[0, 0, -0.35]}>
+          <coneGeometry args={[0.84, 1.15, 40]} />
+          <M color="#c4202c" rough={0.85} />
+        </mesh>
+        <mesh position={[0.55, 1.0, -0.05]}>
+          <sphereGeometry args={[0.14, 20, 20]} />
+          <M color="#f4f4f4" rough={1} />
+        </mesh>
+      </group>
+    );
+  if (a.accessory === 'witch')
+    return (
+      <group position={[0, 0.66, 0]}>
+        <mesh rotation={[0.05, 0, 0]}>
+          <cylinderGeometry args={[1.35, 1.35, 0.04, 48]} />
+          <M color="#1d1424" rough={0.8} />
+        </mesh>
+        <mesh position={[0, 0.62, -0.05]} rotation={[-0.12, 0, 0.08]}>
+          <coneGeometry args={[0.62, 1.3, 40]} />
+          <M color="#1d1424" rough={0.8} />
+        </mesh>
+        <mesh position={[0, 0.1, 0]}>
+          <cylinderGeometry args={[0.63, 0.65, 0.12, 40]} />
+          <M color="#ff8a2a" rough={0.5} />
+        </mesh>
+      </group>
+    );
+  if (a.accessory === 'bunny')
+    return (
+      <group position={[0, 0.8, 0]}>
+        {[-1, 1].map((sd) => (
+          <group key={sd} position={[sd * 0.32, 0.45, -0.05]} rotation={[0, 0, sd * -0.18]}>
+            <mesh scale={[0.18, 0.62, 0.08]}>
+              <sphereGeometry args={[1, 24, 24]} />
+              <M color="#f2eef0" rough={0.9} />
+            </mesh>
+            <mesh position={[0, 0, 0.05]} scale={[0.1, 0.48, 0.04]}>
+              <sphereGeometry args={[1, 20, 20]} />
+              <M color="#f1a7bd" rough={0.9} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    );
+  if (a.accessory === 'halo')
+    return (
+      <mesh position={[0, 1.25, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.5, 0.05, 16, 48]} />
+        <M color="#ffe58a" emissive="#ffd34d" emissiveIntensity={1.4} rough={0.3} />
+      </mesh>
+    );
+  if (a.accessory === 'horns')
+    return (
+      <group position={[0, 0.7, 0]}>
+        {[-1, 1].map((sd) => (
+          <mesh key={sd} position={[sd * 0.42, 0.18, 0.05]} rotation={[0, 0, sd * -0.45]}>
+            <coneGeometry args={[0.12, 0.45, 20]} />
+            <M color="#8a1620" rough={0.35} />
+          </mesh>
+        ))}
+      </group>
+    );
   return null;
 }
 
@@ -232,13 +320,59 @@ function Body({ a }) {
     <group position={[0, -1.45, 0]}>
       <mesh scale={[1.25, 1, 0.9]}>
         <capsuleGeometry args={[0.55, 0.5, 12, 32]} />
-        <M color={a.topColor} rough={a.top === 'jacket' ? 0.4 : 0.85} />
+        <M color={a.top === 'astronaut' ? '#eceef2' : a.topColor} rough={a.top === 'jacket' ? 0.4 : 0.85} />
       </mesh>
       {a.top === 'hoodie' && (
         <mesh position={[0, 0.62, -0.18]} rotation={[Math.PI / 2.4, 0, 0]}>
           <torusGeometry args={[0.45, 0.13, 16, 40]} />
           <M color={a.topColor} rough={0.85} />
         </mesh>
+      )}
+      {a.top === 'suit' && (
+        <>
+          <mesh position={[0, 0.2, 0.52]} rotation={[0.1, 0, 0]}>
+            <coneGeometry args={[0.18, 0.7, 3]} />
+            <M color="#f1f2f4" rough={0.6} />
+          </mesh>
+          <mesh position={[0, 0.25, 0.6]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.06, 0.5, 4]} />
+            <M color="#8f1d2c" rough={0.5} />
+          </mesh>
+        </>
+      )}
+      {a.top === 'armor' && (
+        <>
+          <mesh position={[0, 0.1, 0.12]} scale={[1.3, 1.02, 0.95]}>
+            <capsuleGeometry args={[0.56, 0.42, 8, 24]} />
+            <M color="#9aa3b2" metal={0.9} rough={0.25} />
+          </mesh>
+          {[-1, 1].map((sd) => (
+            <mesh key={sd} position={[sd * 0.78, 0.55, 0]} scale={[1, 0.6, 1]}>
+              <sphereGeometry args={[0.3, 24, 24, 0, Math.PI * 2, 0, Math.PI / 2]} />
+              <M color="#7d8696" metal={0.9} rough={0.3} />
+            </mesh>
+          ))}
+        </>
+      )}
+      {a.top === 'astronaut' && (
+        <>
+          <mesh position={[0, 0.1, 0.5]}>
+            <boxGeometry args={[0.45, 0.32, 0.08]} />
+            <M color="#d8dbe2" rough={0.5} />
+          </mesh>
+          <mesh position={[0.1, 0.12, 0.55]}>
+            <boxGeometry args={[0.08, 0.08, 0.02]} />
+            <M color="#3fa66b" emissive="#3fa66b" emissiveIntensity={1} />
+          </mesh>
+          <mesh position={[0, 1.5, 0]}>
+            <sphereGeometry args={[1.28, 48, 48]} />
+            <meshPhysicalMaterial color="#cfe3ff" transmission={0.9} roughness={0.05} thickness={0.1} transparent opacity={0.35} />
+          </mesh>
+          <mesh position={[0, 0.78, 0]}>
+            <torusGeometry args={[0.6, 0.12, 16, 40]} />
+            <M color="#e8eaee" rough={0.5} />
+          </mesh>
+        </>
       )}
       {a.top === 'jacket' && (
         <mesh position={[0, 0.05, 0.5]}>

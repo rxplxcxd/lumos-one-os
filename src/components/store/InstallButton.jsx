@@ -6,6 +6,9 @@ import { useSettings } from '@/store/settings.js';
 import { verifyFace } from '@/services/faceid.js';
 import { launch } from '@/store/library.js';
 import { toast } from '@/store/ui.js';
+import { useProfiles, activeProfile } from '@/store/profile.js';
+import { oarsAge, hasParentalPin, checkParentalPin } from '@/store/parental.js';
+import { askPin } from '@/components/shell/PinPrompt.jsx';
 import { spring } from '@/lib/motion.js';
 
 export default function InstallButton({ app, size = 'md', showUninstall = false }) {
@@ -16,7 +19,15 @@ export default function InstallButton({ app, size = 'md', showUninstall = false 
   const h = size === 'lg' ? 'h-12 min-w-[9.5rem] text-[0.95rem]' : 'h-9 min-w-[5.6rem] text-[0.8rem]';
 
   const doInstall = async () => {
-    if (needFace) {
+    const prof = activeProfile(useProfiles.getState());
+    if (prof?.role === 'child' || prof?.role === 'guest') {
+      const age = oarsAge(app.contentRating);
+      if (prof.role === 'child' && age > (prof.controls?.ageLimit ?? 12)) {
+        toast({ title: `Freigegeben ab ${age}`, body: 'Die Kindersicherung erlaubt diese App nicht', kind: 'error' });
+        return;
+      }
+      if (!hasParentalPin() || !(await askPin({ title: 'Eltern-PIN', sub: `„${app.name}“ installieren`, check: checkParentalPin }))) return;
+    } else if (needFace) {
       const r = await verifyFace(`„${app.name}“ installieren`);
       if (!r.ok) return;
     }

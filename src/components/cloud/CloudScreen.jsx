@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Cloud, CloudUpload, CloudDownload, RefreshCw, LogOut, HardDrive, ShoppingBag, MonitorSmartphone, Trash2, CheckCircle2, CloudOff } from 'lucide-react';
 import { Screen, Hint, Button, TextField, Segmented, ListGroup, ListRow } from '@/components/ui/primitives.jsx';
-import { useCloud, signIn, signUp, signOut, syncNow, uploadSave, restoreSave, deleteCloudSave, deviceId } from '@/services/cloud/cloudService.js';
+import { useCloud, signIn, signUp, signOut, syncNow, syncSave, restoreSave, deleteCloudSave, deviceId, diffSave, resolveConflict } from '@/services/cloud/cloudService.js';
+import { Sheet } from '@/components/ui/primitives.jsx';
+import { GitCompare, Laptop, CloudCog } from 'lucide-react';
 import { request } from '@/services/bridge.js';
 import { formatBytes } from '@/services/flathub.js';
 import { toast } from '@/store/ui.js';
 import { haptic } from '@/services/haptics.js';
 import { spring } from '@/lib/motion.js';
+import { offerSave } from '@/components/shell/AutofillBar.jsx';
 
 function Login() {
   const [mode, setMode] = useState('in');
@@ -22,6 +25,7 @@ function Login() {
       if (mode === 'in') await signIn({ email, password: pw });
       else await signUp({ email, password: pw, displayName: name });
       haptic('success');
+      offerSave('lumos-cloud', email, pw);
     } catch (e) {
       haptic('error');
       toast({ title: mode === 'in' ? 'Anmeldung fehlgeschlagen' : 'Registrierung fehlgeschlagen', body: e.message, kind: 'error' });
@@ -39,11 +43,71 @@ function Login() {
       <Segmented value={mode} onChange={setMode} options={[{ value: 'in', label: 'Anmelden' }, { value: 'up', label: 'Konto erstellen' }]} className="mb-4" />
       <div className="space-y-3">
         {mode === 'up' && <TextField value={name} onChange={setName} placeholder="Anzeigename" />}
-        <TextField autoFocus type="email" value={email} onChange={setEmail} placeholder="E-Mail" />
-        <TextField type="password" value={pw} onChange={setPw} placeholder="Passwort (min. 8 Zeichen)" onEnter={submit} />
+        <TextField autoFocus type="email" value={email} onChange={setEmail} placeholder="E-Mail" data-autofill="lumos-cloud" data-autofill-role="user" />
+        <TextField type="password" value={pw} onChange={setPw} placeholder="Passwort (min. 8 Zeichen)" onEnter={submit} data-autofill="lumos-cloud" data-autofill-role="password" />
         <Button variant="primary" className="w-full" onClick={submit} disabled={busy}>{busy ? 'Bitte warten …' : mode === 'in' ? 'Anmelden' : 'Konto erstellen'}</Button>
       </div>
     </motion.div>
+  );
+}
+
+
+const CHANGE = { changed: ['Geändert', 'text-warn'], 'local-only': ['Nur lokal', 'text-lumen-400'], 'cloud-only': ['Nur Cloud', 'text-ok'], same: ['Gleich', 'text-mist-500'] };
+
+function ConflictSheet({ id, onClose }) {
+  const c = useCloud((s) => s.conflicts[id]);
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (id) diffSave(id).then(setRows, () => setRows([]));
+  }, [id]);
+  if (!c) return null;
+  const choose = async (keep) => {
+    setBusy(true);
+    try {
+      await resolveConflict(id, keep);
+      haptic('success');
+      toast({ title: keep === 'local' ? 'Lokaler Stand hochgeladen' : 'Cloud-Stand wiederhergestellt', kind: 'success' });
+      onClose();
+    } catch (e) {
+      toast({ title: 'Fehlgeschlagen', body: e.message, kind: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const Side = ({ icon: I, title, when, size, extra, newer }) => (
+    <div className={`flex-1 rounded-2xl p-4 ${newer ? 'bg-lumen/10 ring-1 ring-lumen/40' : 'bg-white/[0.05]'}`}>
+      <div className="flex items-center gap-2 font-semibold"><I className="h-4 w-4" /> {title} {newer && <span className="ml-auto rounded-full bg-lumen/30 px-2 py-0.5 text-[0.65rem]">neuer</span>}</div>
+      <div className="mt-2 text-[0.82rem]">{new Date(when).toLocaleString('de-DE')}</div>
+      <div className="text-[0.75rem] text-mist-400">{formatBytes(size)}{extra ? ` · ${extra}` : ''}</div>
+    </div>
+  );
+  const localNewer = c.local.mtime > c.remote.updatedAt;
+  return (
+    <Sheet open={!!id} onClose={onClose} title={c.kind === 'conflict' ? `Konflikt: ${c.local.title}` : `Neuerer Cloud-Stand: ${c.local.title}`} className="w-[52rem]">
+      <div className="flex gap-3">
+        <Side icon={Laptop} title="Dieses Gerät" when={c.local.mtime} size={c.local.size} extra={`${c.local.files ?? '?'} Dateien`} newer={localNewer} />
+        <div className="flex items-center"><GitCompare className="h-5 w-5 text-mist-400" /></div>
+        <Side icon={CloudCog} title="Lumos Cloud" when={c.remote.updatedAt} size={c.remote.size} extra={`v${c.remote.version}${c.remote.device === deviceId() ? ' · dieses Gerät' : ' · anderes Gerät'}`} newer={!localNewer} />
+      </div>
+      <div className="mt-4 max-h-[14rem] overflow-y-auto rounded-2xl bg-black/30 p-2 font-mono text-[0.72rem]">
+        {!rows && <div className="p-3 text-mist-500">Vergleiche Dateien …</div>}
+        {rows?.length === 0 && <div className="p-3 text-mist-500">Keine Dateiliste in der Cloud (älterer Upload) – Vergleich nur nach Datum möglich.</div>}
+        {rows?.map((r) => (
+          <div key={r.path} className="grid grid-cols-[6rem_1fr_6rem_6rem] gap-2 px-2 py-1">
+            <span className={CHANGE[r.change][1]}>{CHANGE[r.change][0]}</span>
+            <span className="truncate">{r.path}</span>
+            <span className="text-right text-mist-400">{r.local ? formatBytes(r.local.size) : '—'}</span>
+            <span className="text-right text-mist-400">{r.remote ? formatBytes(r.remote.size) : '—'}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>Später</Button>
+        <Button variant="subtle" icon={CloudDownload} disabled={busy} onClick={() => choose('cloud')}>Cloud-Stand laden</Button>
+        <Button variant="primary" icon={CloudUpload} disabled={busy} autoFocus onClick={() => choose('local')}>Diesen Stand behalten</Button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -67,8 +131,9 @@ function SyncBadge({ status, lastSync, pending, error }) {
   );
 }
 
-export default function CloudScreen() {
+export default function CloudScreen({ conflict }) {
   const c = useCloud();
+  const [openConflict, setOpenConflict] = useState(conflict || null);
   const [local, setLocal] = useState([]);
   const [busy, setBusy] = useState(null);
   useEffect(() => {
@@ -96,6 +161,13 @@ export default function CloudScreen() {
       ) : (
         <div className="mx-auto max-w-[56rem] space-y-6">
           <SyncBadge {...c} />
+          {Object.keys(c.conflicts).length > 0 && (
+            <div className="glass flex items-center gap-3 rounded-3xl p-4 ring-1 ring-warn/40">
+              <GitCompare className="h-6 w-6 text-warn" />
+              <div className="flex-1 text-[0.88rem]">{Object.keys(c.conflicts).length} Spielstand-Konflikt(e) – lokal und Cloud wurden beide geändert.</div>
+              <Button size="sm" variant="primary" onClick={() => setOpenConflict(Object.keys(c.conflicts)[0])}>Vergleichen</Button>
+            </div>
+          )}
           <ListGroup title="Spielstände auf diesem Gerät" footer="Archive werden vom Daemon gepackt (tar.gz), per SHA-256 geprüft und versioniert hochgeladen.">
             {local.length === 0 && <ListRow label="Keine Spielstand-Ordner gefunden" />}
             {local.map((s) => {
@@ -112,7 +184,21 @@ export default function CloudScreen() {
                   right={
                     <span className="flex items-center gap-2">
                       {inSync && <CheckCircle2 className="h-4 w-4 text-ok" />}
-                      <Button size="sm" variant="subtle" icon={CloudUpload} disabled={busy === s.id} onClick={() => run(s.id, () => uploadSave(s), `${s.title} gesichert`)}>{busy === s.id ? '…' : 'Sichern'}</Button>
+                      {c.conflicts[s.id] && <Button size="sm" variant="danger" icon={GitCompare} onClick={() => setOpenConflict(s.id)}>Konflikt</Button>}
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        icon={CloudUpload}
+                        disabled={busy === s.id}
+                        onClick={() =>
+                          run(s.id, async () => {
+                            const r = await syncSave(s);
+                            if (r.status === 'conflict' || r.status === 'cloud-newer') setOpenConflict(s.id);
+                          }, `${s.title} synchronisiert`)
+                        }
+                      >
+                        {busy === s.id ? '…' : 'Sync'}
+                      </Button>
                     </span>
                   }
                 />
@@ -153,6 +239,7 @@ export default function CloudScreen() {
           </div>
         </div>
       )}
+      {openConflict && c.conflicts[openConflict] && <ConflictSheet id={openConflict} onClose={() => setOpenConflict(null)} />}
     </Screen>
   );
 }

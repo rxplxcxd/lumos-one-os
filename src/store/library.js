@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { on, request } from '@/services/bridge.js';
 import { haptic } from '@/services/haptics.js';
 import { toast } from './ui.js';
+import { canPlay } from './parental.js';
 
 export const useLibrary = create(() => ({ items: [], loading: false, error: null }));
 
@@ -24,6 +25,16 @@ export function startLibraryFeeds() {
 
 export async function launch(item) {
   haptic('select');
+  if (!canPlay(item)) {
+    haptic('error');
+    toast({ title: 'Gesperrt', body: 'Die Kindersicherung erlaubt diesen Titel nicht', kind: 'error' });
+    return;
+  }
+  if (item.kind === 'builtin') {
+    const { open } = await import('./ui.js');
+    open('game', { id: item.id });
+    return;
+  }
   try {
     await request('library.launch', { id: item.id }, 30000);
     toast({ title: 'Wird gestartet', body: item.name, kind: 'info', duration: 2000 });

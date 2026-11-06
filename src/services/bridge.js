@@ -65,7 +65,7 @@ function wsImpl(url) {
       ws.onclose = () => {
         pending.forEach((p) => p.reject(new Error('daemon disconnected')));
         pending.clear();
-        if (connected) setStatus({ connected: false });
+        if (connected && !gaveUp) setStatus({ connected: false }); // an abandoned probe socket must not override the simulator's status
         if (!gaveUp) setTimeout(() => (ready = open().catch(() => {})), (backoff = Math.min(backoff * 2, 5000)));
       };
     });

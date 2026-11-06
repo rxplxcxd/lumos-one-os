@@ -12,6 +12,8 @@ import { BatteryGlyph } from '@/components/shell/StatusBar.jsx';
 import { useNotes, sortedNotes } from '@/store/notes.js';
 import { useDownloads } from '@/store/downloads.js';
 import { open } from '@/store/ui.js';
+import { useHub, unifiedFriends, presenceText } from '@/services/social/hub.js';
+import { FriendAvatar, Cover, STATUS_COLOR } from '@/components/social/parts.jsx';
 import { spring } from '@/lib/motion.js';
 
 const W_ICON = { sun: Sun, 'cloud-sun': CloudSun, cloud: Cloud, fog: CloudFog, drizzle: CloudDrizzle, rain: CloudRain, snow: CloudSnow, storm: CloudLightning };
@@ -315,6 +317,52 @@ export function CloudWidget({ size }) {
   );
 }
 
+// Friends of every linked network: most active first, with avatar, platform badge and game.
+export function SocialWidget({ size }) {
+  const cloudFriends = useCloud((s) => s.friends);
+  const unread = useCloud((s) => s.unread);
+  const { presence, external } = useHub();
+  const all = unifiedFriends({ cloudFriends, presence, external });
+  const active = all.filter((f) => f.status !== 'offline');
+  const shown = (active.length ? active : all).slice(0, size === 2 ? 4 : size === 4 ? 4 : 7);
+  const go = () => open('social');
+  return (
+    <button data-nav="" onClick={go} className="nav-focus -m-1 flex h-[calc(100%+0.5rem)] w-[calc(100%+0.5rem)] flex-col rounded-2xl p-1 text-left">
+      <div className="flex items-center justify-between">
+        <div className="label">Freunde</div>
+        <span className="flex items-center gap-1.5 text-[0.7rem] text-mist-400">
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_COLOR.online }} />{active.length} online
+          {unread > 0 && <span className="rounded-full bg-bad px-1.5 font-bold text-white">{unread}</span>}
+        </span>
+      </div>
+      {!all.length && <div className="m-auto text-center text-[0.75rem] text-mist-500">Verknüpfe Konten unter<br />Einstellungen → Konten</div>}
+      {size === 2 ? (
+        <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-3">
+          {shown.map((f, i) => (
+            <motion.div key={f.key} initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 380, damping: 22, delay: i * 0.05 }} className="flex flex-col items-center gap-1">
+              <FriendAvatar f={f} size="2.6rem" />
+              <span className="max-w-full truncate text-[0.62rem] text-mist-300">{f.name}</span>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+          {shown.map((f, i) => (
+            <motion.div key={f.key} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 26, delay: i * 0.04 }} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-2 py-1.5">
+              <FriendAvatar f={f} size="2rem" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.8rem]">{f.name}</span>
+                <span className="block truncate text-[0.66rem] text-mist-400">{presenceText(f)}</span>
+              </span>
+              {f.game && size >= 4 && <Cover game={f.game} className="h-9 w-7 shrink-0 rounded-md" />}
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </button>
+  );
+}
+
 export function NotesWidget({ size }) {
   const notes = sortedNotes(useNotes((s) => s.notes)).slice(0, size === 6 ? 5 : size === 4 ? 3 : 1);
   return (
@@ -386,6 +434,7 @@ export const WIDGETS = {
   clock: ClockWidget,
   controllers: ControllersWidget,
   cloud: CloudWidget,
+  social: SocialWidget,
   notes: NotesWidget,
   downloads: DownloadsWidget,
   quick: QuickWidget,

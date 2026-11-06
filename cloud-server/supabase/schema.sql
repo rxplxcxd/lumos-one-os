@@ -67,6 +67,8 @@ drop policy if exists "read own" on public.entitlements;
 create policy "read own" on public.entitlements for select using (auth.uid() = user_id);
 drop policy if exists "claim free" on public.entitlements;
 create policy "claim free" on public.entitlements for insert with check (auth.uid() = user_id and kind = 'free');
+drop policy if exists "refresh free" on public.entitlements;
+create policy "refresh free" on public.entitlements for update using (auth.uid() = user_id and kind = 'free') with check (auth.uid() = user_id and kind = 'free');
 
 -- Optimistic-concurrency write for profile/settings documents.
 create or replace function public.lumos_put_doc(p_table text, p_data jsonb, p_version integer)

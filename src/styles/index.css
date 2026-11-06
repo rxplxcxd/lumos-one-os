@@ -153,3 +153,34 @@ webview {
 .focus-halo .row-focus:focus-visible {
   box-shadow: none;
 }
+
+/* Energiesparmodus: no shimmer sweeps, no infinite pulses */
+.low-power .shimmer::after {
+  animation: none;
+}
+
+/* ---- v1.1 seasonal engine ---------------------------------------------- */
+@keyframes season-twinkle { 0%, 100% { opacity: 1; filter: brightness(1.25); } 50% { opacity: 0.35; filter: brightness(0.7); } }
+.season-bulb { animation: season-twinkle 1.8s ease-in-out infinite; box-shadow: 0 0 10px 2px currentColor; }
+@keyframes season-candle {
+  0%, 100% { opacity: 0.55; } 18% { opacity: 0.75; } 33% { opacity: 0.5; } 52% { opacity: 0.8; } 71% { opacity: 0.6; } 86% { opacity: 0.72; }
+}
+.season-candles {
+  background:
+    radial-gradient(ellipse 45% 35% at 0% 100%, rgba(255, 130, 30, 0.22), transparent 70%),
+    radial-gradient(ellipse 45% 35% at 100% 100%, rgba(255, 110, 20, 0.2), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, rgba(30, 5, 40, 0.45));
+  mix-blend-mode: screen;
+  animation: season-candle 3.4s steps(12) infinite;
+}
+html[data-season] .dock-icon { box-shadow: 0 0 0 1px rgb(var(--season) / 0.35), 0 8px 28px -10px rgb(var(--season) / 0.7); }
+html[data-season='christmas'] .dock-icon::before {
+  content: ''; position: absolute; inset: -3px 8% auto; height: 9px; border-radius: 9px 9px 4px 4px;
+  background: linear-gradient(#fff, #e9f1ff); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25); z-index: 2;
+}
+html[data-season='halloween'] .dock-icon { background-image: linear-gradient(160deg, rgba(255, 140, 40, 0.18), transparent 60%); }
+.low-power .season-bulb, .reduce-motion .season-bulb { animation: none; }
+
+/* OLED care: dim static chrome after inactivity */
+.dim-static [data-static] { opacity: 0.45; transition: opacity 2.5s ease; }
+[data-static] { transition: opacity 0.4s ease; }

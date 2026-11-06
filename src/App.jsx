@@ -13,6 +13,22 @@ import ErrorBoundary from '@/components/shell/ErrorBoundary.jsx';
 import OnScreenKeyboard from '@/components/shell/OnScreenKeyboard.jsx';
 import FocusLayer from '@/components/shell/FocusLayer.jsx';
 import Ambient from '@/components/shell/Ambient.jsx';
+import PowerWatcher from '@/components/shell/PowerWatcher.jsx';
+import VirtualCursor from '@/components/shell/VirtualCursor.jsx';
+import Spotlight from '@/components/shell/Spotlight.jsx';
+import PerfHud from '@/components/shell/PerfHud.jsx';
+import PinPrompt from '@/components/shell/PinPrompt.jsx';
+import ProfilePicker, { openProfilePicker } from '@/components/shell/ProfilePicker.jsx';
+import PipWindow from '@/components/shell/PipWindow.jsx';
+import AutofillBar from '@/components/shell/AutofillBar.jsx';
+import SeasonalLayer from '@/components/shell/SeasonalLayer.jsx';
+import { pixelOffset } from '@/components/shell/Ambient.jsx';
+import { startGameSession } from '@/services/gameSession.js';
+import { saveClip, takeScreenshot } from '@/services/captureActions.js';
+import { startFpsMeter } from '@/lib/fps.js';
+import { startHub } from '@/services/social/hub.js';
+import { useProfiles } from '@/store/profile.js';
+import { open } from '@/store/ui.js';
 import { applyUiTheme } from '@/lib/themes.js';
 import { configureSounds } from '@/services/sounds.js';
 import { setMotionSpeed } from '@/lib/motion.js';
@@ -40,7 +56,38 @@ const SCREENS = {
   updater: lazy(() => import('@/components/updater/UpdaterScreen.jsx')),
   files: lazy(() => import('@/components/files/FilesScreen.jsx')),
   browser: lazy(() => import('@/components/apps/BrowserApp.jsx')),
+  terminal: lazy(() => import('@/components/apps/TerminalApp.jsx')),
+  taskmanager: lazy(() => import('@/components/apps/TaskManagerApp.jsx')),
+  captures: lazy(() => import('@/components/apps/CapturesApp.jsx')),
+  social: lazy(() => import('@/components/apps/SocialApp.jsx')),
+  game: lazy(() => import('@/components/game/OrbitGame.jsx')),
 };
+
+// Global shortcuts: F10 clip (last 30 s), F11 screenshot, Strg+Alt+Entf / Strg+Umschalt+Esc task manager
+function useGlobalShortcuts() {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code === 'F10') (e.preventDefault(), saveClip());
+      else if (e.code === 'F11') (e.preventDefault(), takeScreenshot());
+      else if ((e.ctrlKey && e.altKey && (e.code === 'Delete' || e.code === 'Backspace')) || (e.ctrlKey && e.shiftKey && e.code === 'Escape')) {
+        e.preventDefault();
+        open('taskmanager');
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+}
+
+function usePixelShift() {
+  const [o, setO] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    const f = (p) => setO({ x: p.x, y: p.y });
+    pixelOffset.listeners.add(f);
+    return () => pixelOffset.listeners.delete(f);
+  }, []);
+  return o;
+}
 const DevPanel = lazy(() => import('@/components/dev/DevPanel.jsx'));
 
 export default function App() {
@@ -59,13 +106,17 @@ export default function App() {
 
   useInputSystem();
   useFaceIdEvents();
+  useGlobalShortcuts();
+  const shift = usePixelShift();
 
   useEffect(() => {
     let offs = [];
     initBridge().then(() => {
-      offs = [startSettingsEffects(), startSystemFeeds(), startDownloadFeeds(), startLibraryFeeds()];
+      offs = [startSettingsEffects(), startSystemFeeds(), startDownloadFeeds(), startLibraryFeeds(), startGameSession(), startFpsMeter(), startHub()];
       initCloud();
       setReady(true);
+      // several profiles on this device → who's playing? (once per cold boot)
+      if (useProfiles.getState().profiles.length > 1 && sessionStorage.getItem('lumos.booted') !== '1') setTimeout(openProfilePicker, 2600);
       // Face ID lock after a cold boot (only if a face is enrolled and the feature is on)
       if (useSettings.getState().values.faceIdUnlock && sessionStorage.getItem('lumos.booted') !== '1') {
         request('faceid.status')
@@ -82,8 +133,8 @@ export default function App() {
   }, [uiScale, reduceMotion]);
 
   useEffect(() => {
-    applyUiTheme({ theme: v.uiTheme, glassOpacity: v.glassOpacity, glassBlur: v.glassBlur, reduceTransparency: v.reduceTransparency, highContrast: v.highContrast, boldText: v.boldText, focusStyle: v.focusStyle });
-  }, [v.uiTheme, v.glassOpacity, v.glassBlur, v.reduceTransparency, v.highContrast, v.boldText, v.focusStyle]);
+    applyUiTheme({ theme: v.uiTheme, glassOpacity: v.glassOpacity, glassBlur: v.glassBlur, reduceTransparency: v.reduceTransparency, highContrast: v.highContrast, boldText: v.boldText, focusStyle: v.focusStyle, lowPower: v.lowPower });
+  }, [v.uiTheme, v.glassOpacity, v.glassBlur, v.reduceTransparency, v.highContrast, v.boldText, v.focusStyle, v.lowPower]);
   useEffect(() => configureSounds({ enabled: v.uiSounds, theme: v.uiSoundTheme, volume: v.uiSoundVolume }), [v.uiSounds, v.uiSoundTheme, v.uiSoundVolume]);
   useEffect(() => setToastDuration(() => useSettings.getState().values.toastDuration * 1000), []);
   useEffect(() => {
@@ -104,8 +155,10 @@ export default function App() {
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>
       <LivingBackground />
+      <SeasonalLayer />
       <motion.div
         className="fixed inset-0"
+        style={{ x: shift.x, y: shift.y }}
         initial={{ opacity: 0, scale: 1.04, filter: 'brightness(2.2) blur(10px)' }}
         animate={revealed ? { opacity: 1, scale: 1, filter: 'brightness(1) blur(0px)', transitionEnd: { filter: 'none' } } : {}}
         transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
@@ -127,11 +180,19 @@ export default function App() {
             {locked && <LockScreen />}
             <OnScreenKeyboard />
             <Ambient />
+            <PowerWatcher />
+            <PerfHud />
+            <PipWindow />
+            <AutofillBar />
+            <Spotlight />
+            <ProfilePicker />
           </>
         )}
       </motion.div>
       <FaceIDSheet />
+      <PinPrompt />
       <FocusLayer />
+      <VirtualCursor />
       {boot && (
         <BootAnimation
           fast={reduceMotion || v.bootAnimation === 'short' || sessionStorage.getItem('lumos.booted') === '1'}

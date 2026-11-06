@@ -27,6 +27,7 @@ class SimModule(Module):
         }
         self.flatpaks = {"org.mozilla.firefox": {"id": "org.mozilla.firefox", "name": "Firefox", "version": "132.0", "size": "289 MB", "origin": "flathub", "installation": "user"}}
         self.library = [
+            {"id": "builtin:orbit", "kind": "builtin", "name": "Lumos Orbit", "lastPlayed": now - 60e3, "playtime": 42},
             {"id": "steam:1145360", "kind": "steam", "name": "Hades", "appid": 1145360, "lastPlayed": now - 2 * 3600e3, "playtime": 3120},
             {"id": "steam:367520", "kind": "steam", "name": "Hollow Knight", "appid": 367520, "lastPlayed": now - 26 * 3600e3, "playtime": 2210},
             {"id": "steam:413150", "kind": "steam", "name": "Stardew Valley", "appid": 413150, "lastPlayed": now - 120 * 3600e3, "playtime": 5100},
@@ -39,6 +40,8 @@ class SimModule(Module):
         self.saves = [{"id": "retroarch", "title": "RetroArch (Saves & States)", "path": "~/.var/app/org.libretro.RetroArch/config/retroarch/saves", "size": 18_000_000, "mtime": int(now - 86400e3), "hash": "sim-retroarch", "files": 42}]
         self.gyro_override = None
         self.externals: dict[str, dict] = {}
+        self.running: dict[int, dict] = {}
+        self._pid = 4200
 
     def methods(self):
         return {
@@ -108,8 +111,31 @@ class SimModule(Module):
         if not item:
             raise RpcError("Titel nicht gefunden", "ENOENT")
         item["lastPlayed"] = time.time() * 1000
-        self.emit("library.launched", {"id": item_id, "simulated": True})
-        return {"ok": True, "pid": 0, "simulated": True}
+        self._pid += 7
+        self.running[self._pid] = {"id": item_id, "name": item["name"], "started": time.time()}
+        self.emit("library.launched", {"id": item_id, "pid": self._pid, "simulated": True})
+        return {"ok": True, "pid": self._pid, "simulated": True}
+
+    def save_manifest(self, sid):
+        import hashlib
+
+        base = int(time.time() // 3600)
+        files = [("saves/Pokemon Emerald.srm", 131072), ("saves/Zelda Minish Cap.srm", 65536), ("states/Pokemon Emerald.state1", 412_000), ("states/Metroid Fusion.state", 388_000)]
+        return [{"path": f, "size": sz + (base % 7 if "state1" in f else 0), "mtime": int((time.time() - i * 5400) * 1000), "sha256": hashlib.sha256(f"{f}{base if 'state1' in f else 0}".encode()).hexdigest()} for i, (f, sz) in enumerate(files)]
+
+    def processes(self):
+        import random
+
+        out = [{"pid": pid, "id": r["id"], "name": r["name"], "kind": "app", "cpu": round(random.uniform(18, 64), 1), "rss": int(random.uniform(0.6, 2.4) * 1e9), "threads": 24, "uptime": int(time.time() - r["started"]), "killable": True} for pid, r in self.running.items()]
+        out.append({"pid": 1337, "id": "lumosd", "name": "lumosd (Hardware-Daemon, simuliert)", "kind": "daemon", "cpu": 0.4, "rss": 48_000_000, "killable": False})
+        return out
+
+    def kill(self, pid):
+        r = self.running.pop(pid, None)
+        if not r:
+            raise RpcError("Prozess nicht gefunden", "ENOENT")
+        self.emit("library.exited", {"id": r["id"], "code": -15, "killed": True})
+        return {"ok": True, "signal": "TERM"}
 
     async def face_verify(self, state):
         await asyncio.sleep(0.9)

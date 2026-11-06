@@ -31,6 +31,14 @@ Die erste Nachricht muss `auth.hello {token}` sein. Der Token wird bei jedem Sta
 | Spielstände | `saves.list` · `saves.pack {id}` → `{archive, sha256}` · `saves.restore {id, archive}` |
 | Updates | `update.status` · `update.check {channel}` · `update.download` · `update.apply {archive?}` · `update.rollback` · `update.cleanup` · `update.usb_scan` · `update.pair_start` |
 | Medien | `media.status` · `media.control {action: toggle\|play\|pause\|next\|previous}` |
+| Terminal (v1.1) | `terminal.open {cols, rows}` → `{id, shell, pid}` · `terminal.write {id, data}` · `terminal.resize {id, cols, rows}` · `terminal.close {id}` · `system.logs {limit, level?, since?}` |
+| Apps & Rechte (v1.1) | `permissions.apply {id, perms: {sensors, controller, storage, network, push}}` → `{args, enforced}` (Flatpak-Overrides, nur Verbote) · `permissions.get {id}` |
+| Task-Manager (v1.1) | `process.list` → `[{pid, id, name, kind, cpu, rss, threads, uptime, killable}]` · `process.kill {pid}` (nur von Lumos gestartete Titel, SIGTERM → SIGKILL auf die Prozessgruppe) |
+| Spielprofile (v1.1) | `profiles.set {profiles: {id: {fps, tdp, refresh}}}` – wird beim Start angewendet und beim Beenden zurückgesetzt |
+| Aufnahme & HUD (v1.1) | `capture.status` · `capture.buffer {on, seconds}` (gpu-screen-recorder Replay) · `capture.clip` → `{path}` · `capture.screenshot` → `{path}` · `hud.configure {mode: off\|minimal\|full, position}` (MangoHud) |
+| Audio-EQ (v1.1) | `audio.eq {enabled, bands: [60 Hz, 250 Hz, 1 kHz, 3,5 kHz, 10 kHz] dB}` (PipeWire filter-chain) |
+| Spielstand-Diff (v1.1) | `saves.manifest {id}` → `[{path, size, mtime, sha256}]` |
+| Social Hub (v1.1) | `social.accounts` → `{steam,xbox,psn,nintendo: {linked,name,experimental}}` · `social.link {platform, credentials}` (steam: `key`,`user` · psn: `npsso` · nintendo: `bridgeUrl`,`token?`) · `social.unlink {platform}` · `social.xbox_device_start {clientId}` → `{userCode,url,interval}` · `social.xbox_device_poll` → `{status: pending\|linked}` · `social.search {query, platforms?}` → `{results, errors}` · `social.friends {platforms?}` → `{friends, errors}` (normalisiert inkl. Präsenz/Spiel/Cover) · `social.messages {platform, friendId}` · `social.send {platform, friendId, text}` (Xbox nativ, Steam → Deeplink) · `social.add {platform, id}` (Xbox nativ, Steam → Deeplink). Tokens liegen AES-256-GCM-verschlüsselt im Tresor (`~/.local/share/lumos/social.vault`, Schlüssel `social.key` mit Modus 0600) und werden nie an die UI zurückgegeben. |
 | Simulator | `sim.state` · `sim.faceid {outcome: success\|fail\|none}` · `sim.battery {percent, charging}` · `sim.controller {side, attached, battery}` · `sim.controller_power {side, connected}` · `sim.dock {docked}` · `sim.button {button, pressed}` · `sim.gyro {pitch, roll \| reset}` · `sim.usb_controller {model: xbox\|dualsense\|pro\|8bitdo\|generic, connected}` |
 
 `sim.*` (außer `sim.button`/`sim.gyro`) funktioniert nur mit `lumosd --simulate`.
@@ -41,7 +49,10 @@ Die erste Nachricht muss `auth.hello {token}` sein. Der Token wird bei jedem Sta
 `controller.attached` · `controller.detached` · `controller.low_battery` · `dock.changed` · `input.home` · `input.qam` ·
 `input.button` · `flatpak.progress {job, id, op, percent, stage, speed}` · `flatpak.done` · `flatpak.error` ·
 `faceid.state {state: searching\|detected\|matched\|failed\|enrolling\|enrolled, progress, angle}` · `faceid.frame {jpeg, face}` ·
-`library.launched` · `library.exited` · `library.changed` · `media.state` · `update.progress {stage, percent}` · `update.paired` · `update.uploaded`
+`library.launched` · `library.exited` · `library.changed` · `media.state` · `update.progress {stage, percent}` · `update.paired` · `update.uploaded` ·
+v1.1: `terminal.data {id, data}` · `terminal.exit {id, code}` · `display.brightness {value, lux}` (adaptive Helligkeit über IIO-Lichtsensor) · `system.stats` enthält `net: {rx_bps, tx_bps}`
+
+**Origin-Prüfung (v1.1):** Verbindungen werden nur von `file://`/Electron und `localhost`/`127.0.0.1` angenommen; GitHub-Codespaces-Weiterleitungen (`*.app.github.dev`) nur mit `lumosd --dev`. Zusätzlich gilt weiterhin die Token-Authentifizierung.
 
 ## PC-Sync-Endpunkt (`:7421`)
 

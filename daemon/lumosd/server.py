@@ -51,6 +51,20 @@ class Server:
             except OSError as e:
                 log.warning("cannot write token to %s: %s", path, e)
 
+    def origin_allowed(self, origin: str) -> bool:
+        if origin in ("null", "file://") or origin.startswith("file://"):
+            return True  # Electron shell
+        try:
+            from urllib.parse import urlparse
+
+            host = urlparse(origin).hostname or ""
+        except ValueError:
+            return False
+        if host in ("127.0.0.1", "localhost", "::1"):
+            return True
+        # GitHub Codespaces port forwarding (private ports are GitHub-authenticated) – dev mode only
+        return self.cfg.dev and (host.endswith(".app.github.dev") or host.endswith(".github.dev"))
+
     def register(self, methods: dict) -> None:
         for name, fn in methods.items():
             if name in self.methods:
@@ -124,7 +138,8 @@ class Server:
 
     async def _handler(self, ws):
         origin = ws.request.headers.get("Origin")
-        if origin and not self.cfg.dev and not origin.startswith(("file://", "http://127.0.0.1", "http://localhost")):
+        if origin and not self.origin_allowed(origin):
+            # always enforced (also with --dev): otherwise any web page could drive the daemon
             await ws.close(4003, "origin not allowed")
             return
         c = Client(ws)

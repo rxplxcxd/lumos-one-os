@@ -36,8 +36,9 @@ export default function LivingBackground() {
   const speed = useSettings((s) => s.values.bgSpeed);
   const particles = useSettings((s) => s.values.bgParticles);
   const uiTheme = useSettings((s) => s.values.uiTheme);
+  const lowPower = useSettings((s) => s.values.lowPower);
   const live = useRef({ intensity, useGyro, reduce, speed, particles, accent: [0.85, 0.89, 1] });
-  live.current = { ...live.current, intensity, useGyro, reduce, speed, particles };
+  live.current = { ...live.current, intensity, useGyro, reduce, speed, particles, lowPower };
   useEffect(() => {
     const t = UI_THEMES.find((x) => x.key === uiTheme) || UI_THEMES[0];
     live.current.accent = t.accent[2].split(' ').map((x) => Number(x) / 255);
@@ -118,7 +119,18 @@ export default function LivingBackground() {
     let simTime = 0;
     let refreshBudget = 1000 / 60;
     let budgetSamples = [];
+    let lastDraw = 0;
     const frame = (now) => {
+      if (live.current.lowPower) {
+        // Energiesparmodus: wallpaper at ≤30 fps and half resolution
+        r.maxScale = 0.5;
+        if (r.scale > 0.5) r.scale = 0.5;
+        if (now - lastDraw < 32) {
+          raf = requestAnimationFrame(frame);
+          return;
+        }
+      } else r.maxScale = 1;
+      lastDraw = now;
       const dt = Math.min(0.05, (now - last) / 1000);
       const ms = now - last;
       last = now;

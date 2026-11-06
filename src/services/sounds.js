@@ -55,6 +55,7 @@ export function playSound(pattern) {
   if (now - (last.get(pattern) ?? 0) < 25) return;
   last.set(pattern, now);
   try {
+    if (!ctx && navigator.userActivation && !navigator.userActivation.hasBeenActive) return; // autoplay policy: wait for the first interaction
     ctx ||= new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
     const th = THEMES[cfg.theme] || THEMES.soft;

@@ -1,12 +1,14 @@
 // 3D avatar creator (React Three Fiber). Renders a 512 px portrait for the profile picture;
 // alternatively an own image can be imported from USB / the file system.
-import { Suspense, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserRound, Shuffle, Save, ImagePlus, FolderOpen } from 'lucide-react';
+import { UserRound, Shuffle, Save, ImagePlus, FolderOpen, Download, Box, Trash2, Check } from 'lucide-react';
 import { Screen, Hint, Button, TextField } from '@/components/ui/primitives.jsx';
 import AvatarModel from './AvatarModel.jsx';
+import ExternalCharacter, { CATALOG, resolveModel, importModel, listImported, deleteImported, isCached } from './ExternalCharacter.jsx';
+import ErrorBoundary from '@/components/shell/ErrorBoundary.jsx';
 import { useProfiles, activeProfile, updateProfile, DEFAULT_AVATAR } from '@/store/profile.js';
 import { useTabs } from '@/hooks/useInputSystem.js';
 import { open, toast, back } from '@/store/ui.js';
@@ -19,6 +21,7 @@ const CLOTH = ['#3d4b63', '#1f2229', '#e9ebef', '#7a2e3a', '#2f5d4a', '#c7a24a',
 const EYEC = ['#2d3a4f', '#3e2a1f', '#2f5a3e', '#4b6b8c', '#1b1b1f'];
 
 const CATS = [
+  { key: 'character', label: 'Figur' },
   { key: 'face', label: 'Gesicht' },
   { key: 'eyes', label: 'Augen' },
   { key: 'hair', label: 'Haare' },
@@ -46,6 +49,89 @@ function Swatches({ value, colors, onChange }) {
     </div>
   );
 }
+const TINTS = ['original', '#ff6b6b', '#ffb84d', '#7ee08a', '#5fb8ff', '#b38bff', '#f2f2f2', '#3a3d45'];
+const COSTUMES = [
+  ['none', 'Keins', {}],
+  ['astronaut', 'Astronaut', { top: 'astronaut', accessory: 'none' }],
+  ['knight', 'Ritter', { top: 'armor', accessory: 'crown' }],
+  ['witch', 'Hexe', { top: 'hoodie', topColor: '#2a1f2e', accessory: 'witch' }],
+  ['devil', 'Teufelchen', { top: 'tee', topColor: '#7a2e3a', accessory: 'horns' }],
+  ['santa', 'Weihnachtsmann', { top: 'jacket', topColor: '#c4202c', accessory: 'santa' }],
+  ['bunny', 'Osterhase', { top: 'hoodie', topColor: '#e9ebef', accessory: 'bunny' }],
+  ['angel', 'Engel', { top: 'tee', topColor: '#e9ebef', accessory: 'halo' }],
+  ['agent', 'Agent', { top: 'suit', topColor: '#1f2229', glasses: 'square', accessory: 'none' }],
+];
+
+// Character picker: built-in Lumos figure, free downloadable models (cached), own GLB imports.
+function CharacterPanel({ a, setA, clips, onDownload }) {
+  const [imported, setImported] = useState([]);
+  const [cached, setCached] = useState({});
+  const fileRef = useRef(null);
+  const reload = () => listImported().then(setImported, () => setImported([]));
+  useEffect(() => {
+    reload();
+    Promise.all(CATALOG.map((c) => isCached(c.id))).then((r) => setCached(Object.fromEntries(CATALOG.map((c, i) => [c.id, r[i]]))));
+  }, [a.model]);
+  const pick = (model) => (setA((x) => ({ ...x, model, emote: null })), haptic('toggle.on'));
+  return (
+    <>
+      <Field label="Figur">
+        <div className="space-y-2">
+          <button data-nav="" onClick={() => pick('lumos')} className={`nav-focus flex w-full items-center gap-3 rounded-2xl p-3 text-left ${(a.model || 'lumos') === 'lumos' ? 'bg-mist-50 text-ink-950' : 'bg-white/[0.07]'}`}>
+            <UserRound className="h-5 w-5" /> <span className="flex-1 text-[0.88rem] font-medium">Lumos-Figur (editierbar)</span>
+          </button>
+          {CATALOG.map((c) => (
+            <button key={c.id} data-nav="" onClick={() => (cached[c.id] || a.model === c.id ? pick(c.id) : onDownload(c.id))} className={`nav-focus flex w-full items-center gap-3 rounded-2xl p-3 text-left ${a.model === c.id ? 'bg-mist-50 text-ink-950' : 'bg-white/[0.07]'}`}>
+              <Box className="h-5 w-5" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.88rem] font-medium">{c.name}</span>
+                <span className={`block truncate text-[0.68rem] ${a.model === c.id ? 'text-ink-700' : 'text-mist-400'}`}>{c.credit}</span>
+              </span>
+              {cached[c.id] ? <Check className="h-4 w-4 text-ok" /> : <Download className="h-4 w-4" />}
+            </button>
+          ))}
+          {imported.map((m) => (
+            <div key={m.id} className="flex gap-2">
+              <button data-nav="" onClick={() => pick(m.id)} className={`nav-focus flex flex-1 items-center gap-3 rounded-2xl p-3 text-left ${a.model === m.id ? 'bg-mist-50 text-ink-950' : 'bg-white/[0.07]'}`}>
+                <Box className="h-5 w-5" /> <span className="flex-1 truncate text-[0.88rem]">{m.name}</span>
+              </button>
+              <Button size="sm" variant="ghost" icon={Trash2} aria-label="Entfernen" onClick={() => deleteImported(m.id).then(() => (a.model === m.id && pick('lumos'), reload()))} />
+            </div>
+          ))}
+          <Button size="sm" variant="subtle" icon={ImagePlus} onClick={() => fileRef.current?.click()}>Eigenes 3D-Modell (.glb) importieren</Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".glb,model/gltf-binary"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importModel(f).then((id) => (reload(), pick(id), toast({ title: 'Modell importiert', kind: 'success' })), (err) => toast({ title: 'Import fehlgeschlagen', body: err.message, kind: 'error' }));
+            }}
+          />
+        </div>
+      </Field>
+      {a.model && a.model !== 'lumos' && (
+        <>
+          <Field label="Einfärben">
+            <div className="flex flex-wrap gap-2.5">
+              {TINTS.map((c) => (
+                <button key={c} data-nav="" onClick={() => setA((x) => ({ ...x, extTint: c }))} aria-label={c} className={`nav-focus h-9 w-9 rounded-full text-[0.6rem] ${a.extTint === c || (!a.extTint && c === 'original') ? 'ring-2 ring-white ring-offset-2 ring-offset-ink-900' : ''}`} style={{ background: c === 'original' ? 'conic-gradient(#ff6b6b,#ffd84d,#7ee08a,#5fb8ff,#b38bff,#ff6b6b)' : c }} />
+              ))}
+            </div>
+          </Field>
+          {clips.length > 0 && (
+            <Field label="Emotes & Animationen">
+              <Chips value={a.emote} options={clips.map((n) => [n, n])} onChange={(n) => setA((x) => ({ ...x, emote: n, emoteAt: Date.now() }))} />
+            </Field>
+          )}
+          <div className="text-[0.72rem] text-mist-500">Accessoires (Extras) werden am Kopf-Knochen des Modells befestigt.</div>
+        </>
+      )}
+    </>
+  );
+}
+
 const Field = ({ label, children }) => (
   <div className="mb-5">
     <div className="label mb-2">{label}</div>
@@ -57,9 +143,32 @@ export default function AvatarStudio() {
   const profile = useProfiles(activeProfile);
   const [a, setA] = useState({ ...DEFAULT_AVATAR, ...(profile?.avatar || {}) });
   const [name, setName] = useState(profile?.name || '');
-  const [cat, setCat] = useState('face');
+  const [cat, setCat] = useState('character');
   const canvasRef = useRef(null);
   const fileRef = useRef(null);
+  const [extUrl, setExtUrl] = useState(null);
+  const [dl, setDl] = useState(null); // download progress 0..1 | -1 indeterminate
+  const [clips, setClips] = useState([]);
+  const model = a.model || 'lumos';
+  const entry = CATALOG.find((c) => c.id === model);
+  useEffect(() => {
+    if (model === 'lumos') return setExtUrl(null);
+    let url;
+    let dead = false;
+    setDl(-1);
+    resolveModel(model, (p) => setDl(p ?? -1))
+      .then((u) => (dead ? URL.revokeObjectURL(u) : ((url = u), setExtUrl(u))))
+      .catch((e) => {
+        toast({ title: '3D-Modell nicht verfügbar', body: `${e.message} – zurück zur Lumos-Figur`, kind: 'error' });
+        setA((x) => ({ ...x, model: 'lumos' }));
+      })
+      .finally(() => !dead && setDl(null));
+    return () => {
+      dead = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [model]);
+  const onClips = useCallback((n) => setClips((entry?.hide ? n.filter((x) => !['Death'].includes(x)) : n) || []), [entry]);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   useTabs((dir) => {
     const i = CATS.findIndex((c) => c.key === cat);
@@ -141,20 +250,34 @@ export default function AvatarStudio() {
             <directionalLight position={[3, 4, 5]} intensity={1.6} />
             <directionalLight position={[-4, 2, -3]} intensity={0.8} color="#9fb6ff" />
             <Suspense fallback={null}>
-              <group position={[0, 0.35, 0]}>
-                <AvatarModel a={a} />
-              </group>
+              {model === 'lumos' || !extUrl ? (
+                <group position={[0, 0.35, 0]}>
+                  <AvatarModel a={a} />
+                </group>
+              ) : (
+                <ErrorBoundary key={extUrl} fallback={null} onError={(e) => (toast({ title: '3D-Modell fehlerhaft', body: e.message, kind: 'error' }), setA((x) => ({ ...x, model: 'lumos' })))}>
+                  <ExternalCharacter key={extUrl} url={extUrl} entry={entry} a={a} emote={a.emote ? `${a.emote}#${a.emoteAt || 0}` : null} onClips={onClips} />
+                </ErrorBoundary>
+              )}
               <ContactShadows position={[0, -2.05, 0]} opacity={0.5} scale={6} blur={2.6} far={3} />
             </Suspense>
             <OrbitControls enablePan={false} enableZoom={false} minPolarAngle={Math.PI / 3} maxPolarAngle={Math.PI / 1.8} minAzimuthAngle={-0.9} maxAzimuthAngle={0.9} />
           </Canvas>
-          <div className="absolute bottom-4 left-1/2 w-[18rem] -translate-x-1/2">
+          {dl != null && (
+            <div className="absolute inset-x-0 top-4 flex justify-center">
+              <div className="glass flex items-center gap-3 rounded-full px-4 py-2 text-[0.8rem]">
+                <Download className="h-4 w-4 animate-pulse" /> 3D-Modell wird geladen {dl >= 0 ? `${Math.round(dl * 100)} %` : '…'}
+              </div>
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-4 flex justify-center"><div className="w-[18rem]">
             <TextField value={name} onChange={setName} placeholder="Name" className="text-center" />
-          </div>
+          </div></div>
         </div>
         <div className="glass w-[26rem] shrink-0 overflow-y-auto rounded-[2rem] p-6">
           <AnimatePresence mode="wait">
             <motion.div key={cat} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={spring.soft}>
+              {cat === 'character' && <CharacterPanel a={a} setA={setA} clips={clips} onDownload={(id) => setA((x) => ({ ...x, model: id }))} />}
               {cat === 'face' && (
                 <>
                   <Field label="Hautton"><Swatches value={a.skin} colors={SKIN} onChange={set('skin')} /></Field>
@@ -179,7 +302,8 @@ export default function AvatarStudio() {
               )}
               {cat === 'style' && (
                 <>
-                  <Field label="Oberteil"><Chips value={a.top} options={[['hoodie', 'Hoodie'], ['tee', 'T-Shirt'], ['jacket', 'Jacke']]} onChange={set('top')} /></Field>
+                  <Field label="Oberteil"><Chips value={a.top} options={[['hoodie', 'Hoodie'], ['tee', 'T-Shirt'], ['jacket', 'Jacke'], ['suit', 'Anzug'], ['armor', 'Rüstung'], ['astronaut', 'Raumanzug']]} onChange={set('top')} /></Field>
+                  <Field label="Kostüme"><Chips value={a.costume || 'none'} options={COSTUMES.map(([k, l]) => [k, l])} onChange={(k) => (setA((x) => ({ ...x, costume: k, ...(COSTUMES.find((c) => c[0] === k)?.[2] || {}) })))} /></Field>
                   <Field label="Farbe"><Swatches value={a.topColor} colors={CLOTH} onChange={set('topColor')} /></Field>
                   <Field label="Hintergrund"><Swatches value={a.bg} colors={['#1c212a', '#2a1f2e', '#1d2a24', '#2b2619', '#16222f', '#26262a']} onChange={set('bg')} /></Field>
                 </>
@@ -187,7 +311,7 @@ export default function AvatarStudio() {
               {cat === 'extras' && (
                 <>
                   <Field label="Brille"><Chips value={a.glasses} options={[['none', 'Keine'], ['round', 'Rund'], ['square', 'Eckig']]} onChange={set('glasses')} /></Field>
-                  <Field label="Accessoire"><Chips value={a.accessory} options={[['none', 'Keins'], ['headphones', 'Kopfhörer'], ['cap', 'Kappe']]} onChange={set('accessory')} /></Field>
+                  <Field label="Accessoire"><Chips value={a.accessory} options={[['none', 'Keins'], ['headphones', 'Kopfhörer'], ['cap', 'Kappe'], ['crown', 'Krone'], ['santa', 'Weihnachtsmütze'], ['witch', 'Hexenhut'], ['bunny', 'Hasenohren'], ['halo', 'Heiligenschein'], ['horns', 'Hörner']]} onChange={set('accessory')} /></Field>
                 </>
               )}
             </motion.div>

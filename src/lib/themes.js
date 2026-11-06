@@ -11,7 +11,8 @@ export const UI_THEMES = [
   { key: 'oled', label: 'OLED-Schwarz', accent: ['240 240 240', '200 200 200', '160 160 160', '120 120 120'], glass: [0, 0, 0], strongAlpha: 0.9 },
 ];
 
-export function applyUiTheme({ theme = 'lumen', glassOpacity = 0.52, glassBlur = 28, reduceTransparency, highContrast, boldText, focusStyle, nightShift = 0 }) {
+export function applyUiTheme({ theme = 'lumen', glassOpacity = 0.52, glassBlur = 28, reduceTransparency, highContrast, boldText, focusStyle, nightShift = 0, lowPower = false }) {
+  if (lowPower) glassBlur = Math.min(glassBlur, 6); // backdrop blur is the most expensive effect on the iGPU
   const t = UI_THEMES.find((x) => x.key === theme) || UI_THEMES[0];
   const r = document.documentElement;
   const [a, a4, a5, a6] = t.accent;
@@ -28,4 +29,5 @@ export function applyUiTheme({ theme = 'lumen', glassOpacity = 0.52, glassBlur =
   r.classList.toggle('high-contrast', !!highContrast);
   r.classList.toggle('bold-text', !!boldText);
   r.classList.toggle('focus-halo', focusStyle === 'halo');
+  r.classList.toggle('low-power', !!lowPower);
 }
